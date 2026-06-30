@@ -1,0 +1,257 @@
+"""
+RLBotPro - Main Entry Point
+Inicia o watchdog e o dashboard Flet.
+
+Instruções de uso:
+1. pip install -r requirements.txt
+2. Editar config.json com token e nick
+3. python main.py (roda o app)
+
+Empacotamento com PyInstaller:
+pyinstaller --onefile --name "RLBotPro" --icon icone.ico --add-data "data;data" --add-data "config.json;." --hidden-import=watchdog --hidden-import=flet --hidden-import=flet.charts main.py
+
+O RLBotPro.exe + config.json = programa portátil
+"""
+import json
+import sys
+import threading
+import time
+from pathlib import Path
+from typing import Optional
+
+import flet as ft
+
+from database import Database
+from bot.watcher import ReplayWatcher
+from bot.uploader import BallchasingUploader
+from bot.analyzer import ReplayAnalyzer
+from bot.comparer import ProComparer
+from dashboard.ui import Dashboard
+
+
+class RLBotPro:
+    """Classe principal do aplicativo RLBotPro."""
+
+    def __init__(self):
+        """Inicializa o aplicativo."""
+        self.config: dict = {}
+        self.db: Optional[Database] = None
+        self.watcher: Optional[ReplayWatcher] = None
+        self.dashboard: Optional[Dashboard] = None
+        self.comparer: Optional[ProComparer] = None
+        self._watcher_thread: Optional[threading.Thread] = None
+
+    def load_config(self) -> bool:
+        """
+        Carrega o arquivo de configuração.
+        
+        Returns:
+            True se carregou com sucesso
+        """
+        config_path = Path("config.json")
+        
+        if not config_path.exists():
+            print("Arquivo config.json não encontrado!")
+            print("Criando config.json com valores padrão...")
+            
+            default_config = {
+                "ballchasing_token": "SEU_TOKEN",
+                "player_name": "SEU_NICK",
+                "replays_folder": "%UserProfile%/Documents/My Games/Rocket League/TAGame/Demos",
+                "pro_to_study": "Zen",
+                "playlists": ["ranked-doubles", "ranked-standard", "ranked-duels"],
+                "theme": "dark",
+                "auto_start_watcher": True
+            }
+            
+            with open(config_path, 'w') as f:
+                json.dump(default_config, f, indent=2)
+            
+            print("Por favor, edite config.json com seu token e nick.")
+            return False
+        
+        try:
+            with open(config_path, 'r') as f:
+                self.config = json.load(f)
+            
+            # Validações básicas
+            if self.config.get('ballchasing_token') == 'SEU_TOKEN':
+                print("AVISO: Token do Ballchasing não configurado!")
+                print("Edite config.json com seu token.")
+            
+            if self.config.get('player_name') == 'SEU_NICK':
+                print("AVISO: Nome do jogador não configurado!")
+                print("Edite config.json com seu nick.")
+            
+            return True
+            
+        except json.JSONDecodeError as e:
+            print(f"Erro ao ler config.json: {e}")
+            return False
+        except IOError as e:
+            print(f"Erro ao acessar config.json: {e}")
+            return False
+
+    def init_database(self) -> bool:
+        """
+        Inicializa o banco de dados.
+        
+        Returns:
+            True se inicializou com sucesso
+        """
+        try:
+            self.db = Database("data/history.db")
+            print("Banco de dados inicializado com sucesso!")
+            return True
+        except Exception as e:
+            print(f"Erro ao inicializar banco de dados: {e}")
+            return False
+
+    def init_comparer(self) -> bool:
+        """
+        Inicializa o comparador de pros.
+        
+        Returns:
+            True se inicializou com sucesso
+        """
+        try:
+            token = self.config.get('ballchasing_token', '')
+            player_name = self.config.get('player_name', '')
+            uploader = BallchasingUploader(token)
+            analyzer = ReplayAnalyzer(player_name)
+            self.comparer = ProComparer(uploader, analyzer, self.db)
+            print("Comparador de pros inicializado!")
+            return True
+        except Exception as e:
+            print(f"Erro ao inicializar comparador: {e}")
+            return False
+
+    def start_watcher(self) -> bool:
+        """
+        Inicia o watcher em uma thread separada.
+        
+        Returns:
+            True se iniciou com sucesso
+        """
+        if not self.config.get('auto_start_watcher', True):
+            print("Watcher desativado nas configurações")
+            return False
+        
+        try:
+            self.watcher = ReplayWatcher(
+                config=self.config,
+                db=self.db,
+                on_replay_processed=self._on_replay_processed
+            )
+            
+            # Iniciar em thread daemon
+            self._watcher_thread = threading.Thread(
+                target=self._run_watcher,
+                daemon=True
+            )
+            self._watcher_thread.start()
+            
+            print("Watcher iniciado em background!")
+            return True
+            
+        except Exception as e:
+            print(f"Erro ao iniciar watcher: {e}")
+            return False
+
+    def _run_watcher(self) -> None:
+        """Executa o watcher em uma thread."""
+        try:
+            self.watcher.start()
+            
+            # Processar uploads pendentes periodicamente
+            while True:
+                time.sleep(60)  # A cada minuto
+                if self.watcher:
+                    pending = self.watcher.process_pending_uploads()
+                    if pending > 0:
+                        print(f"Processados {pending} uploads pendentes")
+                        
+        except Exception as e:
+            print(f"Erro na thread do watcher: {e}")
+
+    def _on_replay_processed(self, stats: dict) -> None:
+        """
+        Callback chamado quando um replay é processado.
+        
+        Args:
+            stats: Estatísticas do replay processado
+        """
+        print(f"Replay processado! Score de proximidade: {stats.get('proximity_score', 0):.1f}%")
+        
+        # Atualizar dashboard se estiver rodando
+        if self.dashboard:
+            self.dashboard.refresh()
+
+    def start_dashboard(self) -> None:
+        """Inicia o dashboard Flet."""
+        def on_page_ready(page: ft.Page):
+            """Chamado quando a página está pronta."""
+            self.dashboard = Dashboard(self.db, self.config, self.comparer)
+            self.dashboard.build(page)
+            
+            # Atualizar status do watcher
+            if self.watcher:
+                self.dashboard.update_status(True)
+        
+        # Iniciar Flet
+        ft.run(main=on_page_ready)
+
+    def run(self) -> None:
+        """Executa o aplicativo completo."""
+        print("=" * 50)
+        print("RLBot Pro - Iniciando...")
+        print("=" * 50)
+        
+        # 1. Carregar configuração
+        if not self.load_config():
+            input("Pressione Enter para sair...")
+            sys.exit(1)
+        
+        # 2. Inicializar banco de dados
+        if not self.init_database():
+            input("Pressione Enter para sair...")
+            sys.exit(1)
+        
+        # 3. Inicializar comparador
+        self.init_comparer()
+        
+        # 4. Iniciar watcher
+        self.start_watcher()
+        
+        # 5. Iniciar dashboard
+        print("\nIniciando dashboard...")
+        print("Para fechar, feche a janela do aplicativo.\n")
+        
+        try:
+            self.start_dashboard()
+        except KeyboardInterrupt:
+            print("\nEncerrando aplicativo...")
+        finally:
+            self.cleanup()
+
+    def cleanup(self) -> None:
+        """Limpa recursos ao encerrar."""
+        print("Encerrando watcher...")
+        if self.watcher:
+            self.watcher.stop()
+        
+        print("Fechando banco de dados...")
+        if self.db:
+            self.db.close()
+        
+        print("Aplicativo encerrado com sucesso!")
+
+
+def main():
+    """Função principal."""
+    app = RLBotPro()
+    app.run()
+
+
+if __name__ == "__main__":
+    main()
