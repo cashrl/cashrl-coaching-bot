@@ -7,6 +7,7 @@ import flet as ft
 from flet.controls.padding import Padding
 from flet.controls.border import Border, BorderSide
 from flet.controls.alignment import Alignment
+from flet.controls.margin import Margin
 import json
 from datetime import datetime
 from typing import Dict, Any, Optional, List
@@ -262,10 +263,34 @@ class Dashboard:
         self._refresh_data()
 
     def _show_analyses(self) -> None:
-        """Mostra a página de análises."""
+        """Mostra a página de análises com seletor de replay e métricas."""
+        # File picker para selecionar replay
+        self.replay_file_picker = ft.FilePicker(
+            on_result=self._on_replay_selected
+        )
+        self.page.overlay.append(self.replay_file_picker)
+        self.page.update()
+        
+        # Container para resultados da análise
+        self.analysis_results_container = ft.Container(
+            content=ft.Column(
+                controls=[
+                    ft.Icon(ft.Icons.ANALYTICS_ROUNDED, size=48, color=COLORS['text_muted']),
+                    ft.Text("Selecione um replay para analisar", size=16, color=COLORS['text_muted']),
+                    ft.Text("Clique no botão abaixo para escolher um arquivo .replay", 
+                            size=12, color=COLORS['text_muted'])
+                ],
+                horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                spacing=8
+            ),
+            expand=True,
+            alignment=Alignment.CENTER
+        )
+        
         self.main_container.content = ft.Container(
             content=ft.Column(
                 controls=[
+                    # Header
                     ft.Row(
                         controls=[
                             ft.Icon(ft.Icons.ANALYTICS_ROUNDED, size=24, color=COLORS['accent']),
@@ -274,27 +299,422 @@ class Dashboard:
                         spacing=12,
                         vertical_alignment=ft.CrossAxisAlignment.CENTER
                     ),
-                    ft.Container(height=20),
+                    ft.Container(height=16),
+                    
+                    # Botão para selecionar replay
                     ft.Container(
-                        content=ft.Column(
+                        content=ft.Row(
                             controls=[
-                                ft.Icon(ft.Icons.CONSTRUCTION_ROUNDED, size=48, color=COLORS['text_muted']),
-                                ft.Text("Em desenvolvimento", size=16, color=COLORS['text_muted']),
-                                ft.Text("Esta página mostrará análises detalhadas das suas stats", 
-                                        size=12, color=COLORS['text_muted'])
+                                ft.Icon(ft.Icons.UPLOAD_FILE_ROUNDED, size=20, color='white'),
+                                ft.Text("Selecionar Replay", size=14, weight=ft.FontWeight.W_600, color='white'),
                             ],
-                            horizontal_alignment=ft.CrossAxisAlignment.CENTER,
-                            spacing=8
+                            spacing=8,
+                            alignment=ft.MainAxisAlignment.CENTER
                         ),
-                        expand=True,
-                        alignment=Alignment.CENTER
-                    )
+                        bgcolor=COLORS['primary'],
+                        border_radius=12,
+                        padding=Padding.symmetric(horizontal=24, vertical=12),
+                        on_click=lambda _: self.replay_file_picker.pick_files(
+                            dialog_title="Selecionar Replay Rocket League",
+                            allowed_extensions=["replay"],
+                            allow_multiple=False
+                        ),
+                        shadow=ft.BoxShadow(
+                            spread_radius=0,
+                            blur_radius=8,
+                            color=COLORS['primary'] + '40',
+                            offset=ft.Offset(0, 4)
+                        )
+                    ),
+                    ft.Container(height=20),
+                    
+                    # Resultados da análise
+                    self.analysis_results_container
                 ],
                 expand=True
             ),
             expand=True,
             padding=Padding.symmetric(horizontal=24, vertical=16)
         )
+
+    def _on_replay_selected(self, e: ft.FilePickerResultEvent) -> None:
+        """Callback quando um replay é selecionado."""
+        if not e.files:
+            return
+        
+        replay_path = e.files[0].path
+        self._analyze_replay(replay_path)
+
+    def _analyze_replay(self, replay_path: str) -> None:
+        """Analisa o replay selecionado e mostra os resultados."""
+        from bot.local_analyzer import LocalReplayAnalyzer, HAS_SUBTR
+        
+        if not HAS_SUBTR:
+            self.analysis_results_container.content = ft.Column(
+                controls=[
+                    ft.Icon(ft.Icons.ERROR_ROUNDED, size=48, color=COLORS['error']),
+                    ft.Text("subtr-actor não instalado", size=16, color=COLORS['error']),
+                    ft.Text("Execute: uv pip install subtr-actor-py", size=12, color=COLORS['text_muted'])
+                ],
+                horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                spacing=8
+            )
+            self.page.update()
+            return
+        
+        # Mostrar loading
+        self.analysis_results_container.content = ft.Column(
+            controls=[
+                ft.ProgressRing(width=40, height=40, stroke_width=4, color=COLORS['primary']),
+                ft.Container(height=8),
+                ft.Text("Analisando replay...", size=14, color=COLORS['text_secondary'])
+            ],
+            horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+            alignment=ft.MainAxisAlignment.CENTER
+        )
+        self.page.update()
+        
+        # Analisar replay
+        try:
+            analyzer = LocalReplayAnalyzer(self.player_name)
+            result = analyzer.analyze_replay(replay_path)
+            
+            if result:
+                self._show_analysis_results(result)
+            else:
+                self.analysis_results_container.content = ft.Column(
+                    controls=[
+                        ft.Icon(ft.Icons.WARNING_ROUNDED, size=48, color=COLORS['warning']),
+                        ft.Text("Não foi possível analisar o replay", size=16, color=COLORS['warning']),
+                        ft.Text("Verifique se o jogador está no replay", size=12, color=COLORS['text_muted'])
+                    ],
+                    horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                    spacing=8
+                )
+                self.page.update()
+        except Exception as ex:
+            self.analysis_results_container.content = ft.Column(
+                controls=[
+                    ft.Icon(ft.Icons.ERROR_ROUNDED, size=48, color=COLORS['error']),
+                    ft.Text("Erro na análise", size=16, color=COLORS['error']),
+                    ft.Text(str(ex), size=12, color=COLORS['text_muted'])
+                ],
+                horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                spacing=8
+            )
+            self.page.update()
+
+    def _show_analysis_results(self, result: Dict[str, Any]) -> None:
+        """Mostra os resultados da análise do replay."""
+        # Extrair dados
+        goals = result.get('goals', 0)
+        assists = result.get('assists', 0)
+        saves = result.get('saves', 0)
+        shots = result.get('shots', 0)
+        score = result.get('score', 0)
+        demos = result.get('demos_inflicted', 0)
+        
+        # Dados do jogo
+        game_mode = result.get('game_mode', '?')
+        map_name = result.get('map_name', '?')
+        team_score = result.get('score', '0-0')
+        duration = result.get('duration_seconds', 0)
+        duration_min = int(duration // 60)
+        duration_sec = int(duration % 60)
+        
+        # Métricas avançadas
+        avg_dist = result.get('avg_distance_to_ball', 0)
+        time_near_ball = result.get('time_near_ball_pct', 0)
+        time_offensive = result.get('time_offensive_pct', 0)
+        
+        # Determinar resultado (vitória/derrota)
+        scores = team_score.split('-')
+        if len(scores) == 2:
+            try:
+                my_score = int(scores[0])
+                their_score = int(scores[1])
+                won = my_score > their_score
+            except:
+                won = False
+        else:
+            won = False
+        
+        # Gerar dicas baseadas nas stats
+        tips = self._generate_analysis_tips(result)
+        
+        # Construir UI
+        controls = [
+            # Header com resultado
+            ft.Row(
+                controls=[
+                    ft.Container(
+                        content=ft.Text("VITÓRIA" if won else "DERROTA", 
+                                        size=14, weight=ft.FontWeight.BOLD, color='white'),
+                        bgcolor=COLORS['success'] if won else COLORS['error'],
+                        border_radius=8,
+                        padding=Padding.symmetric(horizontal=12, vertical=6)
+                    ),
+                    ft.Text(f"{game_mode} • {map_name}", size=14, color=COLORS['text_secondary']),
+                    ft.Text(f"{duration_min}:{duration_sec:02d}", size=14, color=COLORS['text_muted']),
+                ],
+                spacing=12,
+                vertical_alignment=ft.CrossAxisAlignment.CENTER
+            ),
+            ft.Container(height=16),
+            
+            # Placar
+            ft.Container(
+                content=ft.Row(
+                    controls=[
+                        ft.Text(team_score, size=32, weight=ft.FontWeight.BOLD, color=COLORS['text']),
+                    ],
+                    alignment=ft.MainAxisAlignment.CENTER
+                ),
+                bgcolor=COLORS['surface'],
+                border_radius=12,
+                padding=Padding.all(16),
+                border=Border.all(1, COLORS['border_light'])
+            ),
+            ft.Container(height=20),
+            
+            # Stats principais
+            ft.Text("ESTÁTISTICAS", size=12, weight=ft.FontWeight.W_700, 
+                    color=COLORS['text_secondary']),
+            ft.Container(height=8),
+            ft.Row(
+                controls=[
+                    self._build_analysis_stat_card("GOLS", str(goals), COLORS['primary']),
+                    self._build_analysis_stat_card("ASSISTÊNCIAS", str(assists), COLORS['cyan']),
+                    self._build_analysis_stat_card("DEFESAS", str(saves), COLORS['warning']),
+                    self._build_analysis_stat_card("CHUTES", str(shots), COLORS['text_muted']),
+                    self._build_analysis_stat_card("DEMOS", str(demos), COLORS['error']),
+                ],
+                spacing=10,
+                expand=True
+            ),
+            ft.Container(height=20),
+            
+            # Métricas avançadas
+            ft.Text("MÉTRICAS AVANÇADAS", size=12, weight=ft.FontWeight.W_700, 
+                    color=COLORS['text_secondary']),
+            ft.Container(height=8),
+            ft.Row(
+                controls=[
+                    self._build_analysis_metric_card(
+                        "DISTÂNCIA À BOLA", 
+                        f"{avg_dist:.0f}", 
+                        "unidades",
+                        COLORS['cyan']
+                    ),
+                    self._build_analysis_metric_card(
+                        "TEMPO PERTO DA BOLA", 
+                        f"{time_near_ball:.1f}", 
+                        "%",
+                        COLORS['primary']
+                    ),
+                    self._build_analysis_metric_card(
+                        "TEMPO NO ATAQUE", 
+                        f"{time_offensive:.1f}", 
+                        "%",
+                        COLORS['warning']
+                    ),
+                ],
+                spacing=10,
+                expand=True
+            ),
+            ft.Container(height=20),
+            
+            # Dicas
+            ft.Text("DICAS DE MELHORIA", size=12, weight=ft.FontWeight.W_700, 
+                    color=COLORS['text_secondary']),
+            ft.Container(height=8),
+        ]
+        
+        # Adicionar dicas
+        for tip in tips:
+            controls.append(self._build_tip_card(tip))
+        
+        self.analysis_results_container.content = ft.Column(
+            controls=controls,
+            scroll=ft.ScrollMode.AUTO,
+            expand=True
+        )
+        self.page.update()
+
+    def _build_analysis_stat_card(self, title: str, value: str, color: str) -> ft.Container:
+        """Card de stat para a análise."""
+        return ft.Container(
+            content=ft.Column(
+                controls=[
+                    ft.Text(value, size=28, weight=ft.FontWeight.BOLD, color=color),
+                    ft.Text(title, size=10, weight=ft.FontWeight.W_600, 
+                            color=COLORS['text_secondary']),
+                ],
+                horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                spacing=4
+            ),
+            bgcolor=COLORS['surface'],
+            border_radius=12,
+            padding=Padding.all(16),
+            border=Border.all(1, COLORS['border_light']),
+            expand=True
+        )
+
+    def _build_analysis_metric_card(self, title: str, value: str, unit: str, color: str) -> ft.Container:
+        """Card de métrica avançada para a análise."""
+        return ft.Container(
+            content=ft.Column(
+                controls=[
+                    ft.Row(
+                        controls=[
+                            ft.Text(value, size=24, weight=ft.FontWeight.BOLD, color=color),
+                            ft.Text(unit, size=12, color=COLORS['text_muted']),
+                        ],
+                        spacing=4,
+                        alignment=ft.MainAxisAlignment.CENTER
+                    ),
+                    ft.Text(title, size=10, weight=ft.FontWeight.W_600, 
+                            color=COLORS['text_secondary']),
+                ],
+                horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                spacing=4
+            ),
+            bgcolor=COLORS['surface'],
+            border_radius=12,
+            padding=Padding.all(16),
+            border=Border.all(1, COLORS['border_light']),
+            expand=True
+        )
+
+    def _build_tip_card(self, tip: Dict[str, str]) -> ft.Container:
+        """Card de dica de melhoria."""
+        icon_map = {
+            'success': ft.Icons.CHECK_CIRCLE_ROUNDED,
+            'warning': ft.Icons.WARNING_ROUNDED,
+            'error': ft.Icons.ERROR_ROUNDED,
+            'info': ft.Icons.INFO_ROUNDED
+        }
+        color_map = {
+            'success': COLORS['success'],
+            'warning': COLORS['warning'],
+            'error': COLORS['error'],
+            'info': COLORS['primary']
+        }
+        
+        tip_type = tip.get('type', 'info')
+        icon = icon_map.get(tip_type, ft.Icons.LIGHTBULB_ROUNDED)
+        color = color_map.get(tip_type, COLORS['primary'])
+        
+        return ft.Container(
+            content=ft.Row(
+                controls=[
+                    ft.Icon(icon, size=20, color=color),
+                    ft.Column(
+                        controls=[
+                            ft.Text(tip.get('title', ''), size=13, weight=ft.FontWeight.W_600, 
+                                    color=COLORS['text']),
+                            ft.Text(tip.get('message', ''), size=12, color=COLORS['text_secondary']),
+                        ],
+                        spacing=2,
+                        expand=True
+                    ),
+                ],
+                spacing=12,
+                vertical_alignment=ft.CrossAxisAlignment.START
+            ),
+            bgcolor=COLORS['surface'],
+            border_radius=10,
+            padding=Padding.all(12),
+            border=Border.all(1, COLORS['border_light']),
+            margin=Margin(bottom=8)
+        )
+
+    def _generate_analysis_tips(self, result: Dict[str, Any]) -> list:
+        """Gera dicas de melhoria baseadas nas stats da análise."""
+        tips = []
+        
+        goals = result.get('goals', 0)
+        assists = result.get('assists', 0)
+        saves = result.get('saves', 0)
+        shots = result.get('shots', 0)
+        avg_dist = result.get('avg_distance_to_ball', 0)
+        time_near_ball = result.get('time_near_ball_pct', 0)
+        time_offensive = result.get('time_offensive_pct', 0)
+        
+        # Dicas de boost
+        if avg_dist > 1500:
+            tips.append({
+                'type': 'warning',
+                'title': 'Muito longe da bola',
+                'message': f'Sua distância média à bola foi {avg_dist:.0f}. Tente ficar mais perto para ter mais contato com a jogada.'
+            })
+        elif avg_dist < 500:
+            tips.append({
+                'type': 'success',
+                'title': 'Boa proximidade',
+                'message': f'Você ficou perto da bola ({avg_dist:.0f}). Continue assim!'
+            })
+        
+        # Dicas de posicionamento
+        if time_near_ball < 30:
+            tips.append({
+                'type': 'warning',
+                'title': 'Pouco tempo com a bola',
+                'message': f'Você passou apenas {time_near_ball:.1f}% do tempo perto da bola. Tente se posicionar melhor.'
+            })
+        
+        if time_offensive > 60:
+            tips.append({
+                'type': 'success',
+                'title': 'Bom tempo no ataque',
+                'message': f'Você passou {time_offensive:.1f}% do tempo no ataque. Continue pressionando!'
+            })
+        elif time_offensive < 40:
+            tips.append({
+                'type': 'info',
+                'title': 'Mais tempo no ataque',
+                'message': f'Você passou apenas {time_offensive:.1f}% no ataque. Tente subir mais quando tiver oportunidade.'
+            })
+        
+        # Dicas de eficiência
+        if shots > 0 and goals == 0:
+            tips.append({
+                'type': 'warning',
+                'title': 'Melhore a finalização',
+                'message': f'Você chutou {shots} vezes mas não marcou. Pratique a finalização.'
+            })
+        elif goals > 0 and shots > 0:
+            conversion = (goals / shots) * 100
+            if conversion > 50:
+                tips.append({
+                    'type': 'success',
+                    'title': 'Ótima conversão',
+                    'message': f'Você converteu {conversion:.0f}% dos chutes em gols!'
+                })
+            else:
+                tips.append({
+                    'type': 'info',
+                    'title': 'Conversão razoável',
+                    'message': f'Você converteu {conversion:.0f}% dos chutes. Tente ser mais preciso.'
+                })
+        
+        # Dicas de defesa
+        if saves > 2:
+            tips.append({
+                'type': 'success',
+                'title': 'Boa defesa',
+                'message': f'Você fez {saves} defesas. Continue protegendo o gol!'
+            })
+        
+        # Dicas gerais
+        if not tips:
+            tips.append({
+                'type': 'info',
+                'title': 'Continue jogando',
+                'message': 'Jogue mais partidas para receber dicas mais detalhadas!'
+            })
+        
+        return tips
 
     def _show_history(self) -> None:
         """Mostra o histórico de partidas."""
