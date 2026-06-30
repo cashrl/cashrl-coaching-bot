@@ -292,7 +292,7 @@ class Dashboard:
             focused_border_color=COLORS['primary'],
             label_style=ft.TextStyle(color=COLORS['text_secondary']),
             text_style=ft.TextStyle(color=COLORS['text']),
-            on_change=self._on_replay_dropdown_change
+            on_select=self._on_replay_dropdown_change
         )
         self._load_replay_list()
         
