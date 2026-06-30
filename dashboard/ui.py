@@ -1360,15 +1360,20 @@ class Dashboard:
     def _build_chart_section(self) -> ft.Row:
         return ft.Row(
             controls=[
-                self._build_bar_chart(),
+                self._build_evolution_charts(),
                 self._build_comparison_panel()
             ],
             spacing=14,
             expand=True
         )
 
-    def _build_bar_chart(self) -> ft.Container:
-        self.growth_table = ft.Column(spacing=0, scroll=ft.ScrollMode.AUTO)
+    def _build_evolution_charts(self) -> ft.Container:
+        """Constrói os gráficos de evolução."""
+        from dashboard.charts import create_evolution_chart, CHART_COLORS
+        
+        # Placeholder para gráficos (será preenchido com dados reais)
+        self.evolution_charts = ft.Column(spacing=12, expand=True)
+        
         return ft.Container(
             content=ft.Column(
                 controls=[
@@ -1388,10 +1393,10 @@ class Dashboard:
                         spacing=10,
                         vertical_alignment=ft.CrossAxisAlignment.CENTER
                     ),
-                    ft.Container(height=16),
+                    ft.Container(height=12),
                     ft.Divider(height=1, color=COLORS['border']),
                     ft.Container(height=12),
-                    self.growth_table
+                    self.evolution_charts
                 ],
                 spacing=0,
                 expand=True
@@ -1408,6 +1413,49 @@ class Dashboard:
                 offset=ft.Offset(0, 4)
             )
         )
+
+    def _update_evolution_charts(self, matches: list) -> None:
+        """Atualiza os gráficos de evolução com novos dados."""
+        from dashboard.charts import create_evolution_chart, CHART_COLORS
+        
+        if not matches or len(matches) < 2:
+            self.evolution_charts.controls = [
+                ft.Container(
+                    content=ft.Column(
+                        controls=[
+                            ft.Icon(ft.Icons.SHOW_CHART_ROUNDED, size=32, 
+                                   color=COLORS['text_muted']),
+                            ft.Text("Jogue mais partidas para ver gráficos", 
+                                   size=12, color=COLORS['text_muted']),
+                        ],
+                        horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                        alignment=ft.MainAxisAlignment.CENTER,
+                        spacing=8
+                    ),
+                    height=200,
+                    alignment=Alignment.CENTER
+                )
+            ]
+            return
+        
+        # Ordenar por data
+        sorted_matches = sorted(matches, key=lambda x: x.get('date', ''), reverse=False)
+        
+        # Criar gráficos
+        charts = [
+            create_evolution_chart(sorted_matches, 'goals', 'Gols por Partida', 
+                                  CHART_COLORS['primary']),
+            create_evolution_chart(sorted_matches, 'score', 'Score por Partida', 
+                                  CHART_COLORS['cyan']),
+            create_evolution_chart(sorted_matches, 'boost_avg', 'Boost Médio', 
+                                  CHART_COLORS['warning']),
+        ]
+        
+        self.evolution_charts.controls = [
+            ft.Row(controls=charts[:2], spacing=12, expand=True),
+            ft.Container(height=4),
+            ft.Row(controls=charts[2:], spacing=12, expand=True),
+        ]
 
     def _build_comparison_panel(self) -> ft.Container:
         self.comparison_list = ft.Column(spacing=8)
@@ -1588,7 +1636,7 @@ class Dashboard:
                 self.matches_today_value.value = str(len(today_matches))
 
             self._update_table(matches)
-            self._update_chart(matches)
+            self._update_evolution_charts(matches)
             self._update_comparison()
             self._update_tips()
 
@@ -1632,145 +1680,6 @@ class Dashboard:
                     ]
                 )
             )
-
-    def _update_chart(self, matches: List[Dict[str, Any]]) -> None:
-        if not self.growth_table:
-            return
-        self.growth_table.controls.clear()
-
-        if not matches:
-            self.growth_table.controls.append(
-                ft.Container(
-                    content=ft.Column(
-                        controls=[
-                            ft.Icon(ft.Icons.INBOX_ROUNDED, size=32, color=COLORS['text_muted']),
-                            ft.Text("Sem dados para exibir", size=12, color=COLORS['text_muted'])
-                        ],
-                        horizontal_alignment=ft.CrossAxisAlignment.CENTER,
-                        spacing=8
-                    ),
-                    alignment=Alignment.CENTER,
-                    expand=True
-                )
-            )
-            return
-
-        # Cabeçalho da tabela
-        header = ft.Container(
-            content=ft.Row(
-                controls=[
-                    ft.Text("DATA", size=10, color=COLORS['text_muted'], 
-                            weight=ft.FontWeight.W_700, width=100),
-                    ft.Text("SCORE", size=10, color=COLORS['text_muted'], 
-                            weight=ft.FontWeight.W_700, width=70),
-                    ft.Text("VARIAÇÃO", size=10, color=COLORS['text_muted'], 
-                            weight=ft.FontWeight.W_700, width=90),
-                    ft.Text("TENDÊNCIA", size=10, color=COLORS['text_muted'], 
-                            weight=ft.FontWeight.W_700),
-                ],
-                spacing=10,
-                vertical_alignment=ft.CrossAxisAlignment.CENTER
-            ),
-            bgcolor=COLORS['surface'],
-            border_radius=8,
-            padding=Padding.symmetric(horizontal=14, vertical=10)
-        )
-        self.growth_table.controls.append(header)
-        self.growth_table.controls.append(ft.Container(height=8))
-
-        # Ordenar por data (mais antigo primeiro) para calcular variação
-        sorted_matches = sorted(matches[:10], key=lambda x: x.get('date', ''))
-        
-        prev_score = None
-        rows = []
-        for match in reversed(sorted_matches):
-            prox = match.get('proximity_score', 0) or 0
-            date_str = str(match.get('date', ''))[:10]
-            
-            # Calcular variação
-            if prev_score is not None and prev_score > 0:
-                change = prox - prev_score
-                change_pct = (change / prev_score * 100) if prev_score > 0 else 0
-            else:
-                change = 0
-                change_pct = 0
-            
-            prev_score = prox
-            
-            # Cor do score
-            score_color = COLORS['success'] if prox >= 70 else (
-                COLORS['warning'] if prox >= 40 else COLORS['error']
-            )
-            
-            # Indicador de variação
-            if change > 0:
-                change_icon = ft.Icons.ARROW_UPWARD_ROUNDED
-                change_color = COLORS['success']
-                change_text = f"+{change:.1f}"
-            elif change < 0:
-                change_icon = ft.Icons.ARROW_DOWNWARD_ROUNDED
-                change_color = COLORS['error']
-                change_text = f"{change:.1f}"
-            else:
-                change_icon = ft.Icons.MINIMIZE_ROUNDED
-                change_color = COLORS['text_muted']
-                change_text = "0.0"
-            
-            # Indicador visual de tendência (barras menores)
-            trend_width = min(120, max(8, prox * 1.2))
-            trend_bar = ft.Container(
-                content=ft.Container(
-                    bgcolor=score_color,
-                    width=trend_width,
-                    height=8,
-                    border_radius=4,
-                    animate=ft.Animation(300, ft.AnimationCurve.EASE_OUT)
-                ),
-                bgcolor=COLORS['surface'],
-                width=120,
-                height=8,
-                border_radius=4
-            )
-            
-            row = ft.Container(
-                content=ft.Row(
-                    controls=[
-                        ft.Text(date_str, size=12, color=COLORS['text_secondary'], width=100),
-                        ft.Container(
-                            content=ft.Text(f"{prox:.0f}%", size=13, color='white', 
-                                          weight=ft.FontWeight.W_700),
-                            bgcolor=score_color,
-                            border_radius=6,
-                            padding=Padding.symmetric(horizontal=8, vertical=4),
-                            width=60,
-                            alignment=Alignment.CENTER
-                        ),
-                        ft.Row(
-                            controls=[
-                                ft.Icon(change_icon, size=16, color=change_color),
-                                ft.Text(change_text, size=12, color=change_color,
-                                        weight=ft.FontWeight.W_700)
-                            ],
-                            spacing=4,
-                            width=90
-                        ),
-                        trend_bar
-                    ],
-                    spacing=10,
-                    vertical_alignment=ft.CrossAxisAlignment.CENTER
-                ),
-                padding=Padding.symmetric(horizontal=14, vertical=10),
-                border_radius=8,
-                border=Border.all(1, COLORS['border']),
-                on_hover=lambda e: self._on_growth_row_hover(e)
-            )
-            rows.append(row)
-        
-        # Adicionar linhas com espaçamento
-        for i, row in enumerate(rows):
-            self.growth_table.controls.append(row)
-            if i < len(rows) - 1:
-                self.growth_table.controls.append(ft.Container(height=6))
 
     def _update_comparison(self) -> None:
         if not self.comparison_list:
