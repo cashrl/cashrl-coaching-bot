@@ -87,6 +87,10 @@ class Dashboard:
         # Container principal que será atualizado
         self.main_container = ft.Container(expand=True)
 
+        # File picker para seleção de replays
+        self._file_picker = ft.FilePicker()
+        page.overlay.append(self._file_picker)
+
         # Loading overlay
         self.loading_overlay = ft.Container(
             content=ft.Column(
@@ -264,13 +268,6 @@ class Dashboard:
 
     def _show_analyses(self) -> None:
         """Mostra a página de análises com seletor de replay e métricas."""
-        # File picker para selecionar replay
-        self.replay_file_picker = ft.FilePicker(
-            on_result=self._on_replay_selected
-        )
-        self.page.overlay.append(self.replay_file_picker)
-        self.page.update()
-        
         # Container para resultados da análise
         self.analysis_results_container = ft.Container(
             content=ft.Column(
@@ -314,11 +311,7 @@ class Dashboard:
                         bgcolor=COLORS['primary'],
                         border_radius=12,
                         padding=Padding.symmetric(horizontal=24, vertical=12),
-                        on_click=lambda _: self.replay_file_picker.pick_files(
-                            dialog_title="Selecionar Replay Rocket League",
-                            allowed_extensions=["replay"],
-                            allow_multiple=False
-                        ),
+                        on_click=self._pick_replay_file,
                         shadow=ft.BoxShadow(
                             spread_radius=0,
                             blur_radius=8,
@@ -344,6 +337,19 @@ class Dashboard:
         
         replay_path = e.files[0].path
         self._analyze_replay(replay_path)
+
+    async def _pick_replay_file(self, e) -> None:
+        """Abre o file picker para selecionar um replay."""
+        try:
+            files = await self._file_picker.pick_files(
+                dialog_title="Selecionar Replay Rocket League",
+                allowed_extensions=["replay"],
+                allow_multiple=False
+            )
+            if files:
+                self._analyze_replay(files[0].path)
+        except Exception as ex:
+            print(f"Erro ao selecionar arquivo: {ex}")
 
     def _analyze_replay(self, replay_path: str) -> None:
         """Analisa o replay selecionado e mostra os resultados."""
