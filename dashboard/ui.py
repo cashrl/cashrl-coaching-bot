@@ -66,7 +66,6 @@ class Dashboard:
         self.proximity_card_value = None
         self.proximity_progress = None
         self.matches_today_value = None
-        self.pro_card_name = None
         self.tips_list = None
         self.comparison_list = None
         self.table_rows = []
@@ -398,8 +397,7 @@ class Dashboard:
             is_expanded[0] = not is_expanded[0]
             expanded_content.visible = is_expanded[0]
             expand_icon.rotation = ft.Rotate(
-                angle=3.14159 if is_expanded[0] else 0,
-                animate=ft.Animation(200, ft.AnimationCurve.EASE_OUT)
+                angle=3.14159 if is_expanded[0] else 0
             )
             e.control.update()
         
@@ -556,37 +554,6 @@ class Dashboard:
 
     def _build_settings_content(self) -> ft.Container:
         """Conteúdo da página de configurações."""
-        # Pro fixo (Zen)
-        pro_info = ft.Container(
-            content=ft.Row(
-                controls=[
-                    ft.Container(
-                        content=ft.Icon(ft.Icons.PERSON_ROUNDED, size=18, color='white'),
-                        bgcolor=COLORS['accent'],
-                        border_radius=8,
-                        width=36,
-                        height=36,
-                        alignment=Alignment.CENTER
-                    ),
-                    ft.Column(
-                        controls=[
-                            ft.Text("Pro Estudado", size=11, color=COLORS['text_muted'],
-                                    weight=ft.FontWeight.W_500),
-                            ft.Text("Zen", size=16, color=COLORS['text'],
-                                    weight=ft.FontWeight.W_700)
-                        ],
-                        spacing=2
-                    )
-                ],
-                spacing=12,
-                vertical_alignment=ft.CrossAxisAlignment.CENTER
-            ),
-            bgcolor=COLORS['surface'],
-            border_radius=10,
-            padding=Padding.symmetric(horizontal=16, vertical=12),
-            border=Border.all(1, COLORS['border'])
-        )
-
         # Switches de configuração
         switch_monitoring = ft.Switch(
             label="Monitoramento Automático",
@@ -610,16 +577,6 @@ class Dashboard:
             inactive_thumb_color=COLORS['text_muted']
         )
 
-        # Botão de atualizar baseline
-        refresh_btn = ft.Button(
-            content="Atualizar Baseline do Zen",
-            icon=ft.Icons.REFRESH_ROUNDED,
-            on_click=self._on_update_baseline,
-            bgcolor=COLORS['warning'],
-            color='white',
-            width=300
-        )
-
         # Botão salvar
         save_btn = ft.Button(
             content="Salvar Configurações",
@@ -637,13 +594,6 @@ class Dashboard:
                     ft.Container(
                         content=ft.Column(
                             controls=[
-                                ft.Text("Pro Player", size=14, weight=ft.FontWeight.W_700,
-                                        color=COLORS['text']),
-                                ft.Container(height=8),
-                                pro_info,
-                                ft.Container(height=16),
-                                ft.Divider(height=1, color=COLORS['border']),
-                                ft.Container(height=16),
                                 ft.Text("Preferências", size=14, weight=ft.FontWeight.W_700,
                                         color=COLORS['text']),
                                 ft.Container(height=8),
@@ -651,10 +601,6 @@ class Dashboard:
                                 switch_notifications,
                                 switch_auto_upload,
                                 ft.Container(height=20),
-                                ft.Divider(height=1, color=COLORS['border']),
-                                ft.Container(height=16),
-                                refresh_btn,
-                                ft.Container(height=12),
                                 save_btn
                             ],
                             spacing=4
@@ -747,9 +693,7 @@ class Dashboard:
                     spacing=4
                 ),
                 ft.Container(expand=True),
-                self.playlist_tabs,
-                ft.Container(width=10),
-                self._build_pro_badge()
+                self.playlist_tabs
             ],
             alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
             vertical_alignment=ft.CrossAxisAlignment.CENTER
@@ -811,23 +755,6 @@ class Dashboard:
         if self.page:
             self.page.update()
 
-    def _build_pro_badge(self) -> ft.Container:
-        return ft.Container(
-            content=ft.Row(
-                controls=[
-                    ft.Icon(ft.Icons.PERSON_ROUNDED, size=14, color=COLORS['accent']),
-                    ft.Text("Pro: Zen", size=12, color=COLORS['text'],
-                            weight=ft.FontWeight.W_500)
-                ],
-                spacing=6,
-                vertical_alignment=ft.CrossAxisAlignment.CENTER
-            ),
-            bgcolor=COLORS['card'],
-            border=Border.all(1, COLORS['border']),
-            border_radius=20,
-            padding=Padding.symmetric(horizontal=14, vertical=7)
-        )
-
     # ── STAT CARDS ─────────────────────────────────────────────────────────
 
     def _build_stats_row(self) -> ft.Row:
@@ -865,21 +792,8 @@ class Dashboard:
             gradient_colors=COLORS['primary_gradient']
         )
 
-        self.pro_card_name = ft.Text(
-            self.config.get('pro_to_study', 'Zen'),
-            size=26, weight=ft.FontWeight.BOLD, color=COLORS['accent']
-        )
-        pro_card = self._build_stat_card(
-            icon=ft.Icons.STAR_ROUNDED,
-            icon_color=COLORS['accent'],
-            title="PRO ATUAL",
-            value_widget=self.pro_card_name,
-            subtitle="estudando",
-            gradient_colors=COLORS['accent_gradient']
-        )
-
         return ft.Row(
-            controls=[boost_card, proximity_card, matches_card, pro_card],
+            controls=[boost_card, proximity_card, matches_card],
             spacing=14,
             expand=True
         )
@@ -1208,8 +1122,6 @@ class Dashboard:
 
             if self.matches_today_value:
                 self.matches_today_value.value = str(len(today_matches))
-            if self.pro_card_name:
-                self.pro_card_name.value = self.config.get('pro_to_study', 'Zen')
 
             self._update_table(matches)
             self._update_chart(matches)
