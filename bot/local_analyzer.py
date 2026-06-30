@@ -253,7 +253,7 @@ class LocalReplayAnalyzer:
             "assists": stats.get("assists", 0),
             "saves": stats.get("saves", 0),
             "shots": stats.get("shots", 0),
-            "score": stats.get("score", 0),
+            "player_score": stats.get("score", 0),
             "demos_inflicted": stats.get("demos_inflicted", 0),
             "boost_collected": stats.get("boost_collected", 0),
             "boost_used": stats.get("boost_used", 0),

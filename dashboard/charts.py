@@ -77,7 +77,7 @@ def create_evolution_chart(
         color=color,
         stroke_width=3,
         curved=True,
-        below_line_gradient=ft.Gradient(
+        below_line_gradient=ft.LinearGradient(
             begin=ft.alignment.top_center,
             end=ft.alignment.bottom_center,
             colors=[color + "40", color + "00"]

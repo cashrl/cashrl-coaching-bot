@@ -87,10 +87,6 @@ class Dashboard:
         # Container principal que será atualizado
         self.main_container = ft.Container(expand=True)
 
-        # File picker para seleção de replays
-        self._file_picker = ft.FilePicker()
-        page.overlay.append(self._file_picker)
-
         # Loading overlay
         self.loading_overlay = ft.Container(
             content=ft.Column(
@@ -110,6 +106,9 @@ class Dashboard:
             expand=True,
             visible=False
         )
+
+        page.overlay.append(self.loading_overlay)
+        page.update()
 
         page.add(
             ft.Stack(
@@ -274,7 +273,7 @@ class Dashboard:
                 controls=[
                     ft.Icon(ft.Icons.ANALYTICS_ROUNDED, size=48, color=COLORS['text_muted']),
                     ft.Text("Selecione um replay para analisar", size=16, color=COLORS['text_muted']),
-                    ft.Text("Clique no botão abaixo para escolher um arquivo .replay", 
+                    ft.Text("Escolha um replay da lista abaixo ou clique para atualizar", 
                             size=12, color=COLORS['text_muted'])
                 ],
                 horizontal_alignment=ft.CrossAxisAlignment.CENTER,
@@ -283,6 +282,19 @@ class Dashboard:
             expand=True,
             alignment=Alignment.CENTER
         )
+        
+        # Carregar replays disponíveis
+        self.replay_dropdown = ft.Dropdown(
+            width=400,
+            bgcolor=COLORS['surface'],
+            color=COLORS['text'],
+            border_color=COLORS['border'],
+            focused_border_color=COLORS['primary'],
+            label_style=ft.TextStyle(color=COLORS['text_secondary']),
+            text_style=ft.TextStyle(color=COLORS['text']),
+            on_change=self._on_replay_dropdown_change
+        )
+        self._load_replay_list()
         
         self.main_container.content = ft.Container(
             content=ft.Column(
@@ -298,26 +310,29 @@ class Dashboard:
                     ),
                     ft.Container(height=16),
                     
-                    # Botão para selecionar replay
+                    # Seleção de replay
                     ft.Container(
                         content=ft.Row(
                             controls=[
-                                ft.Icon(ft.Icons.UPLOAD_FILE_ROUNDED, size=20, color='white'),
-                                ft.Text("Selecionar Replay", size=14, weight=ft.FontWeight.W_600, color='white'),
+                                ft.Icon(ft.Icons.FOLDER_OPEN_ROUNDED, size=20, color=COLORS['text_secondary']),
+                                self.replay_dropdown,
+                                ft.Container(
+                                    content=ft.Icon(ft.Icons.REFRESH_ROUNDED, size=18, color='white'),
+                                    bgcolor=COLORS['primary'],
+                                    border_radius=8,
+                                    width=36,
+                                    height=36,
+                                    alignment=Alignment.CENTER,
+                                    on_click=lambda _: self._load_replay_list()
+                                ),
                             ],
                             spacing=8,
-                            alignment=ft.MainAxisAlignment.CENTER
+                            vertical_alignment=ft.CrossAxisAlignment.CENTER
                         ),
-                        bgcolor=COLORS['primary'],
+                        bgcolor=COLORS['surface'],
                         border_radius=12,
-                        padding=Padding.symmetric(horizontal=24, vertical=12),
-                        on_click=self._pick_replay_file,
-                        shadow=ft.BoxShadow(
-                            spread_radius=0,
-                            blur_radius=8,
-                            color=COLORS['primary'] + '40',
-                            offset=ft.Offset(0, 4)
-                        )
+                        padding=Padding.all(12),
+                        border=Border.all(1, COLORS['border_light'])
                     ),
                     ft.Container(height=20),
                     
@@ -330,26 +345,64 @@ class Dashboard:
             padding=Padding.symmetric(horizontal=24, vertical=16)
         )
 
-    def _on_replay_selected(self, e: ft.FilePickerResultEvent) -> None:
-        """Callback quando um replay é selecionado."""
-        if not e.files:
+    def _load_replay_list(self) -> None:
+        """Carrega a lista de replays disponíveis."""
+        import os
+        
+        replay_folder = os.path.join(
+            os.path.expanduser("~"),
+            "Documents",
+            "My Games",
+            "Rocket League",
+            "TAGame",
+            "Demos"
+        )
+        
+        if not os.path.exists(replay_folder):
+            self.replay_dropdown.options = [
+                ft.dropdown.Option(key="none", text="Pasta de replays não encontrada")
+            ]
             return
         
-        replay_path = e.files[0].path
-        self._analyze_replay(replay_path)
+        replay_files = [f for f in os.listdir(replay_folder) if f.endswith(".replay")]
+        replay_files.sort(key=lambda x: os.path.getmtime(os.path.join(replay_folder, x)), reverse=True)
+        
+        if not replay_files:
+            self.replay_dropdown.options = [
+                ft.dropdown.Option(key="none", text="Nenhum replay encontrado")
+            ]
+            return
+        
+        options = []
+        for f in replay_files[:20]:  # Limitar a 20 replays
+            # Formatar nome: pegar data de modificação
+            mtime = os.path.getmtime(os.path.join(replay_folder, f))
+            from datetime import datetime
+            date_str = datetime.fromtimestamp(mtime).strftime("%d/%m %H:%M")
+            display_name = f"{date_str} - {f[:30]}..."
+            options.append(ft.dropdown.Option(key=f, text=display_name))
+        
+        self.replay_dropdown.options = options
+        if options:
+            self.replay_dropdown.value = options[0].key
+        self.page.update()
 
-    async def _pick_replay_file(self, e) -> None:
-        """Abre o file picker para selecionar um replay."""
-        try:
-            files = await self._file_picker.pick_files(
-                dialog_title="Selecionar Replay Rocket League",
-                allowed_extensions=["replay"],
-                allow_multiple=False
-            )
-            if files:
-                self._analyze_replay(files[0].path)
-        except Exception as ex:
-            print(f"Erro ao selecionar arquivo: {ex}")
+    def _on_replay_dropdown_change(self, e) -> None:
+        """Callback quando um replay é selecionado no dropdown."""
+        if not e.control.value or e.control.value == "none":
+            return
+        
+        import os
+        replay_folder = os.path.join(
+            os.path.expanduser("~"),
+            "Documents",
+            "My Games",
+            "Rocket League",
+            "TAGame",
+            "Demos"
+        )
+        replay_path = os.path.join(replay_folder, e.control.value)
+        self._analyze_replay(replay_path)
 
     def _analyze_replay(self, replay_path: str) -> None:
         """Analisa o replay selecionado e mostra os resultados."""
@@ -382,7 +435,7 @@ class Dashboard:
         
         # Analisar replay
         try:
-            analyzer = LocalReplayAnalyzer(self.player_name)
+            analyzer = LocalReplayAnalyzer(self.config.get('player_name', ''))
             result = analyzer.analyze_replay(replay_path)
             
             if result:
@@ -417,7 +470,7 @@ class Dashboard:
         assists = result.get('assists', 0)
         saves = result.get('saves', 0)
         shots = result.get('shots', 0)
-        score = result.get('score', 0)
+        score = result.get('player_score', 0)
         demos = result.get('demos_inflicted', 0)
         
         # Dados do jogo
@@ -1039,8 +1092,8 @@ class Dashboard:
         )
 
         # Botão salvar
-        save_btn = ft.Button(
-            content="Salvar Configurações",
+        save_btn = ft.ElevatedButton(
+            content=ft.Text("Salvar Configurações", color='white'),
             icon=ft.Icons.SAVE_ROUNDED,
             on_click=lambda _: self._save_settings(switch_monitoring, 
                                                      switch_notifications, switch_auto_upload),
@@ -1601,18 +1654,6 @@ class Dashboard:
             self.status_text.value = "Monitorando..."
             self.page.update()
 
-    def _show_snackbar(self, message: str) -> None:
-        """Mostra uma mensagem de notificação."""
-        if self.page:
-            self.page.overlay.append(
-                ft.SnackBar(
-                    content=ft.Text(message, color='white'),
-                    bgcolor=COLORS['success']
-                )
-            )
-            self.page.overlay[-1].open = True
-            self.page.update()
-
     # ── DATA REFRESH ───────────────────────────────────────────────────────
 
     def _refresh_data(self) -> None:
@@ -1646,7 +1687,7 @@ class Dashboard:
             print(f"Erro ao atualizar dados: {e}")
 
     def _update_table(self, matches: List[Dict[str, Any]]) -> None:
-        if not self.table or not self.table.rows is None:
+        if not self.table or self.table.rows is None:
             return
         self.table.rows.clear()
 
