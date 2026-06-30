@@ -80,37 +80,72 @@ class Dashboard:
         page.padding = 0
         page.window.width = 1200
         page.window.height = 750
+        page.window.min_width = 800
+        page.window.min_height = 600
 
         # Container principal que será atualizado
         self.main_container = ft.Container(expand=True)
 
-        page.add(
-            ft.Row(
+        # Loading overlay
+        self.loading_overlay = ft.Container(
+            content=ft.Column(
                 controls=[
-                    self._build_sidebar(),
-                    ft.VerticalDivider(width=1, color=COLORS['border']),
-                    self.main_container
+                    ft.ProgressRing(
+                        width=40, height=40,
+                        stroke_width=4,
+                        color=COLORS['primary']
+                    ),
+                    ft.Container(height=16),
+                    ft.Text("Carregando...", size=14, color=COLORS['text_secondary'])
                 ],
-                expand=True,
-                spacing=0
+                horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                alignment=ft.MainAxisAlignment.CENTER
+            ),
+            bgcolor=COLORS['background'] + 'E0',
+            expand=True,
+            visible=False
+        )
+
+        page.add(
+            ft.Stack(
+                controls=[
+                    ft.Row(
+                        controls=[
+                            self._build_sidebar(),
+                            ft.VerticalDivider(width=1, color=COLORS['border']),
+                            self.main_container
+                        ],
+                        expand=True,
+                        spacing=0
+                    ),
+                    self.loading_overlay
+                ],
+                expand=True
             )
         )
         self._show_dashboard()
+
+    def _show_loading(self, show: bool) -> None:
+        """Mostra/esconde o loading overlay."""
+        if self.loading_overlay:
+            self.loading_overlay.visible = show
+            if self.page:
+                self.page.update()
 
     # ── SIDEBAR ────────────────────────────────────────────────────────────
 
     def _build_sidebar(self) -> ft.Container:
         nav_items = [
-            (ft.Icons.DASHBOARD_ROUNDED, "Dashboard", self._show_dashboard),
-            (ft.Icons.ANALYTICS_ROUNDED, "Análises", self._show_analyses),
-            (ft.Icons.HISTORY_ROUNDED, "Histórico", self._show_history),
-            (ft.Icons.SETTINGS_ROUNDED, "Config", self._show_settings),
+            (ft.Icons.DASHBOARD_ROUNDED, "Dashboard", "Visão geral das estatísticas", self._show_dashboard),
+            (ft.Icons.ANALYTICS_ROUNDED, "Análises", "Análises detalhadas de performance", self._show_analyses),
+            (ft.Icons.HISTORY_ROUNDED, "Histórico", "Todas as partidas jogadas", self._show_history),
+            (ft.Icons.SETTINGS_ROUNDED, "Config", "Configurações do aplicativo", self._show_settings),
         ]
 
         self.sidebar_items = []
         self._nav_controls = []
         
-        for i, (icon, label, callback) in enumerate(nav_items):
+        for i, (icon, label, tooltip, callback) in enumerate(nav_items):
             is_active = i == self.nav_index
             item = ft.Container(
                 content=ft.Row(
@@ -765,7 +800,8 @@ class Dashboard:
             title="BOOST MÉDIO",
             value_widget=self.boost_card_value,
             subtitle="pads coletados por partida",
-            gradient_colors=COLORS['warning_gradient']
+            gradient_colors=COLORS['warning_gradient'],
+            tooltip="Média de boost coletado por partida"
         )
 
         self.proximity_card_value = ft.Text("0%", size=32, weight=ft.FontWeight.BOLD, color=COLORS['cyan'])
@@ -779,7 +815,8 @@ class Dashboard:
             value_widget=self.proximity_card_value,
             subtitle="vs pro estudado",
             extra_widget=self.proximity_progress,
-            gradient_colors=COLORS['cyan_gradient']
+            gradient_colors=COLORS['cyan_gradient'],
+            tooltip="Quão próximo você está do nível profissional"
         )
 
         self.matches_today_value = ft.Text("0", size=32, weight=ft.FontWeight.BOLD, color=COLORS['primary'])
@@ -789,7 +826,8 @@ class Dashboard:
             title="PARTIDAS HOJE",
             value_widget=self.matches_today_value,
             subtitle="jogadas",
-            gradient_colors=COLORS['primary_gradient']
+            gradient_colors=COLORS['primary_gradient'],
+            tooltip="Número de partidas jogadas hoje"
         )
 
         return ft.Row(
@@ -799,7 +837,7 @@ class Dashboard:
         )
 
     def _build_stat_card(self, icon, icon_color, title, value_widget,
-                         subtitle="", extra_widget=None, gradient_colors=None) -> ft.Container:
+                         subtitle="", extra_widget=None, gradient_colors=None, tooltip=None) -> ft.Container:
         # Container do ícone com glow effect
         icon_container = ft.Container(
             content=ft.Icon(icon, size=18, color='white'),
