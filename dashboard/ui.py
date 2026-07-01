@@ -844,9 +844,10 @@ class Dashboard:
     def _on_replay_select(self, e) -> None:
         if not e.value:
             return
-        replay_folder = self.config.get('replays_folder', self.config.get('replay_folder', os.path.join(
+        default = os.path.join(
             os.path.expanduser('~'), 'Documents', 'My Games', 'Rocket League', 'TAGame', 'Demos'
-        ))
+        )
+        replay_folder = self.config.get('replays_folder', self.config.get('replay_folder', default))
         replay_path = os.path.join(replay_folder, e.value)
         self._analyze_replay(replay_path)
 
