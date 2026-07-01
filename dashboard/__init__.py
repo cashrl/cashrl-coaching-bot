@@ -1,2 +1,2 @@
 # RLBotPro - Dashboard module
-# Interface Flet para visualização de estatísticas
+# Interface NiceGUI para visualização de estatísticas

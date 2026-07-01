@@ -265,8 +265,13 @@ class ProComparer:
             
             my_value = my_stats.get(stat_name, 0)
             pro_data = baseline[stat_name]
-            pro_avg = pro_data['mean']
-            pro_std = pro_data['std']
+            # Handle both formats: {'mean': x, 'std': y} or flat float
+            if isinstance(pro_data, dict):
+                pro_avg = pro_data.get('mean', 0)
+                pro_std = pro_data.get('std', 0)
+            else:
+                pro_avg = float(pro_data)
+                pro_std = 0
             
             # Calcular diferença e normalizar
             diff = my_value - pro_avg

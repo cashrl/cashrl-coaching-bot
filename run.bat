@@ -1,0 +1,3 @@
+@echo off
+echo Iniciando RLBot Pro com Python 3.12...
+.\.venv312\Scripts\python.exe main.py

@@ -243,6 +243,47 @@ class Database:
         )
         return [dict(row) for row in cursor.fetchall()]
 
+    def clean_old_baselines(self) -> int:
+        """
+        Remove baselines com formato antigo (flat floats) onde os valores
+        das stats são floats em vez de dicts {mean, std, min, max}.
+        Essas baselines serão re-fetchadas automaticamente no próximo uso.
+
+        Returns:
+            Quantidade de baselines removidas
+        """
+        cursor = self.conn.cursor()
+        cursor.execute("SELECT id, playlist, pro_name, averages_json FROM baselines")
+        rows = cursor.fetchall()
+
+        removed = 0
+        for row in rows:
+            try:
+                averages = json.loads(row['averages_json'])
+                if not averages:
+                    continue
+                # Check: at least one stat value should be a dict with 'mean'
+                has_dict_format = any(
+                    isinstance(v, dict) and 'mean' in v
+                    for v in averages.values()
+                )
+                if not has_dict_format:
+                    # Flat format (all floats) — delete so it gets re-fetched
+                    cursor.execute("DELETE FROM baselines WHERE id = ?", (row['id'],))
+                    removed += 1
+                    print(f"Baseline antiga removida: {row['playlist']} / {row['pro_name']}")
+            except (json.JSONDecodeError, TypeError):
+                # Corrupted JSON — delete it too
+                cursor.execute("DELETE FROM baselines WHERE id = ?", (row['id'],))
+                removed += 1
+                print(f"Baseline corrompida removida: {row['playlist']} / {row['pro_name']}")
+
+        if removed > 0:
+            self.conn.commit()
+            print(f"{removed} baseline(s) antiga(s) removida(s). Será re-fetchada no próximo uso.")
+
+        return removed
+
     def close(self) -> None:
         """Fecha a conexão com o banco de dados."""
         if self.conn:

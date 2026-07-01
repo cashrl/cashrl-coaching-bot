@@ -1,12 +1,11 @@
 """
 RLBotPro - Evolution Charts
 Gráficos de evolução de performance ao longo do tempo.
+Migrado de Flet para NiceGUI.
 """
-import flet as ft
 from typing import Dict, Any, List, Optional
 from datetime import datetime
-import json
-from pathlib import Path
+from nicegui import ui
 
 # Cores do gráfico
 CHART_COLORS = {
@@ -30,10 +29,10 @@ def create_evolution_chart(
     title: str,
     color: str = CHART_COLORS['primary'],
     unit: str = ""
-) -> ft.Container:
+) -> ui.element:
     """
-    Cria um gráfico de evolução para uma stat específica.
-    
+    Cria um gráfico de evolução para uma stat específica usando ECharts.
+
     Args:
         data: Lista de dados (cada item é um match com timestamp)
         stat_key: Chave da stat para mostrar
@@ -43,78 +42,28 @@ def create_evolution_chart(
     """
     if not data:
         return _empty_chart(title)
-    
+
     # Extrair valores
     values = []
     labels = []
-    
+
     for i, item in enumerate(data):
         value = item.get(stat_key, 0)
-        values.append(value)
+        values.append(value if value else 0)
         # Label: data ou índice
-        if "timestamp" in item:
+        if "date" in item and item["date"]:
             try:
-                dt = datetime.fromisoformat(item["timestamp"])
+                date_str = str(item["date"])[:10]
+                dt = datetime.strptime(date_str, "%Y-%m-%d")
                 labels.append(dt.strftime("%d/%m"))
-            except:
+            except (ValueError, TypeError):
                 labels.append(str(i + 1))
         else:
             labels.append(str(i + 1))
-    
-    # Criar pontos para o gráfico
-    chart_data = []
-    for i, (val, label) in enumerate(zip(values, labels)):
-        chart_data.append(
-            ft.LineChartDataPoint(
-                x=float(i),
-                y=float(val) if val else 0
-            )
-        )
-    
-    # Criar gráfico de linha
-    line_chart = ft.LineChartData(
-        data_points=chart_data,
-        color=color,
-        stroke_width=3,
-        curved=True,
-        below_line_gradient=ft.LinearGradient(
-            begin=ft.alignment.top_center,
-            end=ft.alignment.bottom_center,
-            colors=[color + "40", color + "00"]
-        )
-    )
-    
-    chart = ft.LineChart(
-        data=[line_chart],
-        expand=True,
-        min_y=0,
-        max_y=max(values) * 1.2 if values else 100,
-        min_x=0,
-        max_x=max(len(values) - 1, 1),
-        left_axis=ft.ChartAxis(
-            labels=[
-                ft.ChartAxisLabel(
-                    value=str(int(i * max(values) / 4)) if values else "0",
-                    style=ft.TextStyle(size=10, color=CHART_COLORS['text_secondary'])
-                )
-                for i in range(5)
-            ],
-            labels_size=40
-        ),
-        bottom_axis=ft.ChartAxis(
-            labels=[
-                ft.ChartAxisLabel(
-                    value=labels[i] if i < len(labels) else "",
-                    style=ft.TextStyle(size=10, color=CHART_COLORS['text_secondary'])
-                )
-                for i in range(0, len(labels), max(1, len(labels) // 5))
-            ],
-            labels_size=40
-        ),
-        tooltip_bgcolor=CHART_COLORS['surface'],
-        tooltip=get_tooltip_color(color),
-    )
-    
+
+    # Valor atual
+    current_value = values[-1] if values else 0
+
     # Calcular variação
     if len(values) >= 2:
         first_val = values[0]
@@ -128,96 +77,135 @@ def create_evolution_chart(
     else:
         variation_color = CHART_COLORS['text_secondary']
         variation_text = "N/A"
-    
-    # Valor atual
-    current_value = values[-1] if values else 0
-    
-    return ft.Container(
-        content=ft.Column(
-            controls=[
-                # Header com título e variação
-                ft.Row(
-                    controls=[
-                        ft.Column(
-                            controls=[
-                                ft.Text(title, size=12, weight=ft.FontWeight.W_600, 
-                                        color=CHART_COLORS['text_secondary']),
-                                ft.Text(f"{current_value:.1f}{unit}", size=24, 
-                                        weight=ft.FontWeight.BOLD, color=color),
-                            ],
-                            spacing=2
-                        ),
-                        ft.Container(
-                            content=ft.Text(variation_text, size=12, weight=ft.FontWeight.W_600,
-                                          color=variation_color),
-                            bgcolor=variation_color + "20",
-                            border_radius=6,
-                            padding=ft.padding.symmetric(horizontal=8, vertical=4)
-                        ),
-                    ],
-                    alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
-                    vertical_alignment=ft.CrossAxisAlignment.START
-                ),
-                ft.Container(height=8),
-                # Gráfico
-                ft.Container(
-                    content=chart,
-                    height=150,
-                    bgcolor=CHART_COLORS['surface'],
-                    border_radius=10,
-                    border=ft.border.all(1, CHART_COLORS['border'])
-                ),
-            ],
-            spacing=0
-        ),
-        expand=True
-    )
+
+    # Configuração do ECharts
+    chart_option = {
+        'backgroundColor': 'transparent',
+        'grid': {
+            'left': '8%',
+            'right': '5%',
+            'top': '8%',
+            'bottom': '15%',
+        },
+        'tooltip': {
+            'trigger': 'axis',
+            'backgroundColor': CHART_COLORS['surface'],
+            'borderColor': CHART_COLORS['border'],
+            'textStyle': {
+                'color': CHART_COLORS['text'],
+                'fontSize': 11
+            },
+        },
+        'xAxis': {
+            'type': 'category',
+            'data': labels,
+            'axisLine': {'lineStyle': {'color': CHART_COLORS['border']}},
+            'axisLabel': {
+                'color': CHART_COLORS['text_secondary'],
+                'fontSize': 9,
+                'rotate': 0 if len(labels) <= 10 else 45
+            },
+            'axisTick': {'show': False},
+        },
+        'yAxis': {
+            'type': 'value',
+            'axisLine': {'show': False},
+            'splitLine': {
+                'lineStyle': {'color': CHART_COLORS['border'], 'type': 'dashed'}
+            },
+            'axisLabel': {
+                'color': CHART_COLORS['text_secondary'],
+                'fontSize': 9
+            },
+        },
+        'series': [{
+            'name': title,
+            'type': 'line',
+            'data': values,
+            'smooth': True,
+            'symbol': 'circle',
+            'symbolSize': 6,
+            'lineStyle': {
+                'color': color,
+                'width': 2.5
+            },
+            'itemStyle': {
+                'color': color,
+                'borderWidth': 2,
+                'borderColor': '#fff'
+            },
+            'areaStyle': {
+                'color': {
+                    'type': 'linear',
+                    'x': 0, 'y': 0, 'x2': 0, 'y2': 1,
+                    'colorStops': [
+                        {'offset': 0, 'color': color + '40'},
+                        {'offset': 1, 'color': color + '05'}
+                    ]
+                }
+            },
+        }]
+    }
+
+    # Container com header + gráfico
+    container = ui.column().classes('w-full')
+    with container:
+        # Header
+        with ui.row().classes('w-full items-center justify-between'):
+            with ui.column().classes('gap-0'):
+                ui.label(title).classes(
+                    'text-xs font-semibold'
+                ).style(f'color: {CHART_COLORS["text_secondary"]}')
+                ui.label(f'{current_value:.1f}{unit}').classes(
+                    'text-2xl font-bold'
+                ).style(f'color: {color}')
+            ui.label(variation_text).classes(
+                'text-xs font-semibold px-2 py-1 rounded-md'
+            ).style(f'color: {variation_color}; background: {variation_color}20')
+
+        # Gráfico ECharts
+        ui.echart(chart_option).classes('w-full').style('height: 150px;')
+
+    return container
 
 
-def _empty_chart(title: str) -> ft.Container:
+def _empty_chart(title: str) -> ui.element:
     """Retorna um gráfico vazio."""
-    return ft.Container(
-        content=ft.Column(
-            controls=[
-                ft.Text(title, size=12, weight=ft.FontWeight.W_600, 
-                        color=CHART_COLORS['text_secondary']),
-                ft.Container(height=20),
-                ft.Icon(ft.Icons.SHOW_CHART_ROUNDED, size=32, 
-                       color=CHART_COLORS['text_secondary']),
-                ft.Text("Sem dados suficientes", size=11, 
-                       color=CHART_COLORS['text_secondary']),
-            ],
-            horizontal_alignment=ft.CrossAxisAlignment.CENTER,
-            alignment=ft.MainAxisAlignment.CENTER,
-            spacing=4
-        ),
-        height=200,
-        bgcolor=CHART_COLORS['surface'],
-        border_radius=10,
-        border=ft.border.all(1, CHART_COLORS['border']),
-        expand=True
+    container = ui.column().classes(
+        'w-full items-center justify-center'
+    ).style(
+        f'height: 200px; background: {CHART_COLORS["surface"]}; '
+        f'border-radius: 10px; border: 1px solid {CHART_COLORS["border"]}'
     )
+    with container:
+        ui.label(title).classes(
+            'text-xs font-semibold'
+        ).style(f'color: {CHART_COLORS["text_secondary"]}')
+        ui.icon('show_chart', size='32px').style(
+            f'color: {CHART_COLORS["text_secondary"]}'
+        )
+        ui.label('Sem dados suficientes').classes(
+            'text-xs'
+        ).style(f'color: {CHART_COLORS["text_secondary"]}')
+    return container
 
 
-def get_tooltip_color(color: str) -> str:
-    """Retorna cor para o tooltip."""
-    return color + "E0"
-
-
-def create_stats_grid(match_history: List[Dict]) -> ft.Container:
+def create_stats_grid(match_history: List[Dict]) -> ui.element:
     """
     Cria um grid de stats comparativo (atual vs anterior).
     """
+    container = ui.row().classes('w-full gap-2')
+
     if not match_history or len(match_history) < 2:
-        return ft.Container(
-            content=ft.Text("Histórico insuficiente para comparação", 
-                          size=12, color=CHART_COLORS['text_secondary']),
-            height=100
-        )
-    
+        with container:
+            ui.label('Histórico insuficiente para comparação').classes(
+                'text-xs'
+            ).style(f'color: {CHART_COLORS["text_secondary"]}')
+        return container
+
     current = match_history[-1]
     previous = match_history[-2]
-    
+
     stats = [
         ("Gols", "goals", CHART_COLORS['primary']),
         ("Assists", "assists", CHART_COLORS['cyan']),
@@ -225,37 +213,32 @@ def create_stats_grid(match_history: List[Dict]) -> ft.Container:
         ("Shots", "shots", CHART_COLORS['warning']),
         ("Score", "score", CHART_COLORS['secondary']),
     ]
-    
-    controls = []
-    for title, key, color in stats:
-        curr_val = current.get(key, 0)
-        prev_val = previous.get(key, 0)
-        
-        if prev_val > 0:
-            change = curr_val - prev_val
-            change_color = CHART_COLORS['success'] if change >= 0 else CHART_COLORS['error']
-            change_text = f"+{change}" if change >= 0 else str(change)
-        else:
-            change_color = CHART_COLORS['text_secondary']
-            change_text = "-"
-        
-        controls.append(
-            ft.Container(
-                content=ft.Column(
-                    controls=[
-                        ft.Text(title, size=10, color=CHART_COLORS['text_secondary']),
-                        ft.Text(str(curr_val), size=18, weight=ft.FontWeight.BOLD, color=color),
-                        ft.Text(change_text, size=10, color=change_color),
-                    ],
-                    horizontal_alignment=ft.CrossAxisAlignment.CENTER,
-                    spacing=2
-                ),
-                expand=True,
-                bgcolor=CHART_COLORS['surface'],
-                border_radius=8,
-                padding=ft.padding.all(8),
-                border=ft.border.all(1, CHART_COLORS['border'])
-            )
-        )
-    
-    return ft.Row(controls=controls, spacing=8, expand=True)
+
+    with container:
+        for title, key, color in stats:
+            curr_val = current.get(key, 0)
+            prev_val = previous.get(key, 0)
+
+            if prev_val > 0:
+                change = curr_val - prev_val
+                change_color = CHART_COLORS['success'] if change >= 0 else CHART_COLORS['error']
+                change_text = f"+{change}" if change >= 0 else str(change)
+            else:
+                change_color = CHART_COLORS['text_secondary']
+                change_text = "-"
+
+            with ui.card().classes('flex-1 items-center').style(
+                f'background: {CHART_COLORS["surface"]}; border-radius: 8px; '
+                f'border: 1px solid {CHART_COLORS["border"]}; padding: 8px;'
+            ):
+                ui.label(title).classes('text-xs').style(
+                    f'color: {CHART_COLORS["text_secondary"]}'
+                )
+                ui.label(str(curr_val)).classes('text-lg font-bold').style(
+                    f'color: {color}'
+                )
+                ui.label(change_text).classes('text-xs').style(
+                    f'color: {change_color}'
+                )
+
+    return container

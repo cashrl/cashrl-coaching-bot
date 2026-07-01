@@ -65,12 +65,12 @@ RLBotPro/
 │   ├── uploader.py      # Upload para Ballchasing
 │   └── watcher.py       # Monitor de pasta
 └── dashboard/
-    └── ui.py            # Interface Flet
+    └── ui.py            # Interface NiceGUI
 ```
 
 ## Tecnologias
 
-- **Flet 0.85.3** - Interface desktop
+- **NiceGUI** - Interface desktop (pywebview)
 - **SQLite** - Banco de dados local
 - **Ballchasing API** - Dados de replays
 - **Watchdog** - Monitor de arquivos
