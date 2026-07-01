@@ -172,7 +172,6 @@ class Dashboard:
 
         self._build_page_content()
         self._show_page(0)
-        ui.timer(30.0, self._refresh_data)
 
     def _global_css(self) -> str:
         return '''
@@ -313,8 +312,6 @@ class Dashboard:
     def _show_page(self, index: int) -> None:
         for i, container in enumerate(self.page_containers):
             container.set_visibility(i == index)
-        if index == 0:
-            self._refresh_data()
 
     def _build_page_content(self) -> None:
         with self.page_containers[0]:
