@@ -269,9 +269,9 @@ class Dashboard:
             ui.space()
 
             # Settings (below)
-            with ui.button(icon='settings').style(nav_item_style(self.current_page == 6)).props('flat') as settings_btn:
+            with ui.button(icon='settings').style(nav_item_style(self.current_page == 3)).props('flat') as settings_btn:
                 ui.tooltip('Settings').classes('text-xs')
-            settings_btn.on_click(lambda e: self._on_nav(6))
+            settings_btn.on_click(lambda e: self._on_nav(3))
 
             ui.space().style('height: 8px;')
 
