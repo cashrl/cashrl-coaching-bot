@@ -27,7 +27,7 @@ class AICoach:
     """Coach de IA usando NVIDIA NIM."""
 
     BASE_URL = "https://integrate.api.nvidia.com/v1"
-    MODEL = "nvidia/llama-3.1-nemotron-70b-instruct"
+    MODEL = "nvidia/llama-3.3-nemotron-super-49b-v1"
 
     def __init__(self, api_key: str):
         if not HAS_OPENAI:

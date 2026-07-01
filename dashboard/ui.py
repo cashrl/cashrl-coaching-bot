@@ -1399,7 +1399,7 @@ class Dashboard:
                         f'font-size: 13px; color: {C["error"]}; margin-bottom: 8px;'
                     )
 
-                ui.label('Model: nvidia/llama-3.1-nemotron-70b-instruct').style(
+                ui.label('Model: nvidia/llama-3.3-nemotron-super-49b-v1').style(
                     f'font-size: 11px; color: {C["text_dim"]};'
                 )
 
