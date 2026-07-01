@@ -146,12 +146,6 @@ class Dashboard:
 
     def build(self) -> None:
         ui.dark_mode(True)
-        ui.add_head_html('''
-            <link rel="preconnect" href="https://fonts.googleapis.com">
-            <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-            <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet">
-            <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet">
-        ''')
         ui.add_head_html(self._global_css())
 
         with ui.column().classes('w-full h-screen').style('margin:0; padding:0;'):
@@ -169,6 +163,9 @@ class Dashboard:
     def _global_css(self) -> str:
         return '''
         <style>
+            @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&family=JetBrains+Mono:wght@500;600&display=swap');
+            @import url('https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200');
+
             body { background: #0a0b0f; color: #e1e2ec; -webkit-font-smoothing: antialiased; }
             .nicegui-content { padding: 0 !important; }
 
