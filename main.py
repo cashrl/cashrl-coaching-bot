@@ -148,16 +148,10 @@ class RLBotPro:
         def index():
             self.dashboard.build()
 
-        # Configurar janela nativa (pywebview)
-        app.native.window_args['title'] = 'RLBot Pro'
-        app.native.window_args['min_size'] = (900, 650)
-
-        # Iniciar NiceGUI em janela nativa (pywebview)
         ui.run(
-            native=True,
-            window_size=(1280, 800),
             dark=True,
             reload=False,
+            port=8000,
         )
 
     def run(self) -> None:
