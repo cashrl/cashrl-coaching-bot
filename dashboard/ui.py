@@ -587,7 +587,9 @@ class Dashboard:
                 )
 
             # Messages
-            self.chat_messages = ui.column().classes('flex-1 overflow-auto custom-scroll').style('padding: 16px;')
+            self.chat_messages = ui.column().classes('w-full').style(
+                f'padding: 16px; flex: 1 1 0; overflow-y: auto; min-height: 0;'
+            )
             with self.chat_messages:
                 self._chat_msg('ai', 'Welcome back, <b>cash</b>. I\'ve analyzed your last 5 matches. Ready for the breakdown?')
 
@@ -603,16 +605,22 @@ class Dashboard:
                     f'color: {C["primary"]}; background: transparent; border: none;'
                 ).on_click(self._send_chat)
 
-    def _chat_msg(self, sender: str, message: str) -> None:
+    def _chat_msg(self, sender: str, message: str, container=None) -> None:
         is_ai = sender == 'ai'
-        with ui.card().classes('w-full').style(
-            f'background: {"rgba(50,53,60,0.8)" if is_ai else "rgba(173,198,255,0.15)"}; '
-            f'border: 1px solid {"rgba(255,255,255,0.05)" if is_ai else "rgba(173,198,255,0.2)"}; '
-            f'border-radius: {"16px 16px 16px 4px" if is_ai else "16px 16px 4px 16px"}; '
-            f'padding: 12px 16px; margin-bottom: 8px; '
-            f'{"max-width: 85%;" if is_ai else "max-width: 85%; margin-left: auto;"}'
-        ):
-            ui.html(f'<p style="font-size: 14px; color: {C["text"]}; margin: 0; line-height: 1.5;">{message}</p>')
+        target = container or self.chat_messages
+        with target:
+            with ui.card().classes('w-full').style(
+                f'background: {"rgba(50,53,60,0.8)" if is_ai else "rgba(173,198,255,0.15)"}; '
+                f'border: 1px solid {"rgba(255,255,255,0.05)" if is_ai else "rgba(173,198,255,0.2)"}; '
+                f'border-radius: {"16px 16px 16px 4px" if is_ai else "16px 16px 4px 16px"}; '
+                f'padding: 12px 16px; margin-bottom: 8px; '
+                f'{"max-width: 85%;" if is_ai else "max-width: 85%; margin-left: auto;"}'
+            ):
+                ui.html(f'<p style="font-size: 14px; color: {C["text"]}; margin: 0; line-height: 1.5;">{message}</p>')
+        ui.run_javascript(f'''
+            const el = document.querySelector("[style*='overflow-y: auto']");
+            if (el) el.scrollTop = el.scrollHeight;
+        ''')
 
     def _send_chat(self) -> None:
         msg = self.chat_input.value
@@ -896,9 +904,11 @@ class Dashboard:
                     )
                     ui.label('AI COACH').style(f'font-size: 14px; font-weight: 700;')
 
-            self.analysis_chat = ui.column().classes('flex-1 overflow-auto custom-scroll').style('padding: 16px;')
+            self.analysis_chat = ui.column().classes('w-full').style(
+                f'padding: 16px; flex: 1 1 0; overflow-y: auto; min-height: 0;'
+            )
             with self.analysis_chat:
-                self._chat_msg('ai', 'Selecione um replay para receber uma análise detalhada da IA.')
+                self._chat_msg('ai', 'Selecione um replay para receber uma análise detalhada da IA.', container=self.analysis_chat)
 
             with ui.row().classes('w-full items-center gap-2').style(
                 f'padding: 16px; border-top: 1px solid rgba(255,255,255,0.05);'
@@ -911,6 +921,13 @@ class Dashboard:
         if not msg:
             return
         self.analysis_input.value = ''
+        self._chat_msg('user', msg, container=self.analysis_chat)
+
+        if self.ai_coach:
+            response = self.ai_coach.chat(msg)
+            self._chat_msg('ai', response or 'Erro ao processar mensagem.', container=self.analysis_chat)
+        else:
+            self._chat_msg('ai', 'AI Coach não disponível. Configure <b>nvidia_api_key</b> no config.json.', container=self.analysis_chat)
 
     def _load_replay_list(self) -> None:
         replay_folder = self.config.get('replay_folder', os.path.join(
