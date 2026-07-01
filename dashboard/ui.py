@@ -128,10 +128,6 @@ class Dashboard:
         ('dashboard',       'Dashboard'),
         ('analytics',       'Replay Analysis'),
         ('history',         'Match History'),
-        ('compare_arrows',  'Pro Comparison'),
-        ('trending_up',     'Progress'),
-        ('emoji_events',    'Achievements'),
-        ('settings',        'Settings'),
     ]
 
     def __init__(self, db: Database, config: dict,
@@ -149,6 +145,12 @@ class Dashboard:
 
     def build(self) -> None:
         ui.dark_mode(True)
+        ui.add_head_html('''
+            <link rel="preconnect" href="https://fonts.googleapis.com">
+            <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+            <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet">
+            <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet">
+        ''')
         ui.add_head_html(self._global_css())
 
         with ui.column().classes('w-full h-screen').style('margin:0; padding:0;'):
@@ -167,12 +169,11 @@ class Dashboard:
     def _global_css(self) -> str:
         return '''
         <style>
-            @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&family=JetBrains+Mono:wght@500;600&display=swap');
-
             body { background: #0a0b0f; color: #e1e2ec; -webkit-font-smoothing: antialiased; }
             .nicegui-content { padding: 0 !important; }
 
             * { font-family: 'Inter', sans-serif; }
+            .material-symbols-outlined, .q-icon, [class*="q-icon"] { font-family: 'Material Symbols Outlined', 'Material Icons', sans-serif !important; }
 
             @keyframes fadeInUp {
                 from { opacity: 0; transform: translateY(14px); }
@@ -308,9 +309,6 @@ class Dashboard:
             self._show_dashboard,
             self._show_replay_analysis,
             self._show_match_history,
-            self._show_pro_comparison,
-            self._show_progress,
-            self._show_achievements,
             self._show_settings,
         ]
         pages[index]()
@@ -1362,193 +1360,6 @@ class Dashboard:
                     f'<span style="font-size: 16px; font-weight: 700; color: {C["tertiary"]};">{prox:.0f}%</span>'
                     f'</div>'
                 )
-
-    # ════════════════════════════════════════════════════════════════════════
-    # PRO COMPARISON PAGE
-    # ════════════════════════════════════════════════════════════════════════
-
-    def _show_pro_comparison(self) -> None:
-        self.main_area.clear()
-        with self.main_area:
-            with ui.row().classes('w-full items-center justify-between').style('margin-bottom: 24px;'):
-                with ui.row().classes('items-center gap-4'):
-                    ui.label('Professional Comparison').style(
-                        f'font-size: 24px; font-weight: 700; color: {C["text"]};'
-                    )
-                    ui.button('Zen ▾').style(
-                        f'background: {C["surface_high"]}; border: 1px solid rgba(255,255,255,0.1); '
-                        f'border-radius: 24px; padding: 8px 20px; color: {C["text"]}; font-weight: 600; text-transform: none;'
-                    )
-
-            # Similarity hero
-            with ui.card().classes('w-full radar-bg fade-in').style(
-                glass('padding: 40px; overflow: hidden;')
-            ):
-                ui.html(
-                    '<div style="position:absolute; top:-100px; right:-100px; width:300px; height:300px; '
-                    f'background: rgba(173,198,255,0.05); border-radius: 50%; filter: blur(100px); pointer-events:none;"></div>'
-                )
-
-                with ui.row().classes('w-full items-center gap-12'):
-                    ui.html(self._svg_large_ring(72, 160, C['primary']))
-
-                    with ui.column().classes('gap-4'):
-                        with ui.row().classes('items-center gap-6'):
-                            ui.avatar(icon='person', color=C['primary_container'], text_color='white', size='80px').style(
-                                'border-radius: 16px;'
-                            )
-                            with ui.column().classes('gap-2'):
-                                ui.label('You are 72% similar to Zen').style(
-                                    f'font-size: 32px; font-weight: 900; color: {C["text"]}; line-height: 1.2;'
-                                )
-                                ui.label('In 2v2 Ranked Matches (Season 12)').style(
-                                    f'font-size: 16px; color: {C["text_var"]};'
-                                )
-
-                        with ui.row().classes('gap-3'):
-                            ui.html(
-                                f'<div style="padding: 6px 16px; border-radius: 20px; background: rgba(173,198,255,0.1); '
-                                f'border: 1px solid rgba(173,198,255,0.2); font-size: 14px; font-weight: 600; color: {C["primary"]};">'
-                                f'Rank: Grand Champion III</div>'
-                            )
-                            ui.html(
-                                f'<div style="padding: 6px 16px; border-radius: 20px; background: rgba(76,215,246,0.1); '
-                                f'border: 1px solid rgba(76,215,246,0.2); font-size: 14px; font-weight: 600; color: {C["tertiary"]};">'
-                                f'Playstyle: Aggressive Finisher</div>'
-                            )
-
-            ui.space().style('height: 24px;')
-
-            # Detailed comparison
-            with ui.row().classes('w-full gap-6'):
-                self._build_detailed_comparison_bars()
-
-                # AI Insights
-                with ui.card().classes('w-96 fade-in').style(glass('padding: 0; animation-delay: 0.2s;')):
-                    with ui.row().classes('items-center gap-3').style(
-                        f'padding: 20px; background: rgba(173,198,255,0.03); border-bottom: 1px solid rgba(255,255,255,0.05);'
-                    ):
-                        ui.icon('auto_awesome', size='20px').style(f'color: {C["primary"]};')
-                        ui.label('AI Coach Insights').style(f'font-size: 16px; font-weight: 700;')
-
-                    with ui.column().classes('p-5 gap-6'):
-                        # Biggest gap
-                        with ui.column().classes('gap-2'):
-                            with ui.row().classes('w-full justify-between'):
-                                ui.label('Biggest Gap').style(label_caps(f'font-size: 11px; color: {C["error"]};'))
-                                ui.label('-18%').style(f'font-size: 11px; font-weight: 700; color: {C["error"]};')
-                            ui.label('Boost Management').style(f'font-size: 14px; font-weight: 600; color: {C["text"]};')
-                            ui.label('You\'re consuming significantly more boost than Zen for the same field coverage.').style(
-                                f'font-size: 12px; color: {C["text_var"]}; line-height: 1.5;'
-                            )
-
-                        ui.separator().style(f'background: rgba(255,255,255,0.05);')
-
-                        # Closest stat
-                        with ui.column().classes('gap-2'):
-                            with ui.row().classes('w-full justify-between'):
-                                ui.label('Closest Stat').style(label_caps(f'font-size: 11px; color: {C["tertiary"]};'))
-                                ui.label('+3%').style(f'font-size: 11px; font-weight: 700; color: {C["tertiary"]};')
-                            ui.label('Positioning').style(f'font-size: 14px; font-weight: 600; color: {C["text"]};')
-                            ui.label('Your average distance to the ball is nearly identical to Zen\'s form.').style(
-                                f'font-size: 12px; color: {C["text_var"]}; line-height: 1.5;'
-                            )
-
-    def _build_detailed_comparison_bars(self) -> None:
-        with ui.card().classes('flex-1 fade-in').style(glass('padding: 24px; animation-delay: 0.1s;')):
-            with ui.row().classes('w-full items-center justify-between').style('margin-bottom: 20px;'):
-                ui.label('Metric Comparison').style(f'font-size: 18px; font-weight: 700;')
-                with ui.row().classes('gap-4'):
-                    for color, lbl in [(C['primary'], 'You'), ('rgba(255,255,255,0.2)', 'Zen')]:
-                        with ui.row().classes('items-center gap-2'):
-                            ui.html(f'<div style="width:12px; height:12px; border-radius:3px; background:{color};"></div>')
-                            ui.label(lbl).style(f'font-size: 11px; color: {C["text_var"]};')
-
-            stats = [
-                ('Boost Usage (Avg/Min)', 342, 415, C['error'], '-18%', 'down'),
-                ('Time Supersonic (%)', 18.4, 22, C['tertiary'], '+3%', 'up'),
-                ('Avg Distance to Ball', 1240, 1240, C['text_dim'], 'MATCHED', 'none'),
-                ('Shooting Accuracy (%)', 42.8, 51, C['error'], '-9%', 'down'),
-                ('Goals per Game', 1.2, 1.8, C['error'], '-33%', 'down'),
-                ('Saves per Game', 2.1, 1.5, C['tertiary'], '+40%', 'up'),
-            ]
-
-            for label, you_val, pro_val, status_color, status_text, direction in stats:
-                you_pct = min(100, (you_val / max(pro_val, 1)) * 100) if pro_val > 0 else 50
-                pro_pct = min(100, 100)
-
-                with ui.column().classes('w-full gap-2').style('margin-bottom: 16px;'):
-                    with ui.row().classes('w-full justify-between items-center'):
-                        ui.label(label).style(
-                            stat_mono(f'font-size: 12px; color: {C["text_var"]}; text-transform: uppercase; letter-spacing: 0.05em;')
-                        )
-                        with ui.row().classes('items-center gap-2'):
-                            ui.label(str(you_val)).style(stat_mono(f'font-size: 16px; font-weight: 600; color: {C["primary"]};'))
-                            if direction != 'none':
-                                ui.html(
-                                    f'<span style="font-size:11px; font-weight:700; color:{status_color}; display:flex; align-items:center; gap:2px;">'
-                                    f'<span class="material-symbols-outlined" style="font-size:14px;">arrow_{"upward" if direction == "up" else "downward"}</span>'
-                                    f'{status_text}</span>'
-                                )
-                            else:
-                                ui.html(
-                                    f'<span style="padding: 2px 8px; border-radius: 4px; background: rgba(255,255,255,0.05); '
-                                    f'font-size: 10px; color: rgba(255,255,255,0.5);">{status_text}</span>'
-                                )
-
-                    with ui.column().classes('w-full gap-1'):
-                        ui.html(
-                            f'<div class="stat-bar"><div style="width:{you_pct:.0f}%; background:{C["primary"]}; border-radius:3px;"></div></div>'
-                        )
-                        ui.html(
-                            f'<div class="stat-bar"><div style="width:{pro_pct:.0f}%; background:rgba(255,255,255,0.15); border-radius:3px;"></div></div>'
-                        )
-
-    # ════════════════════════════════════════════════════════════════════════
-    # PROGRESS PAGE
-    # ════════════════════════════════════════════════════════════════════════
-
-    def _show_progress(self) -> None:
-        self.main_area.clear()
-        with self.main_area:
-            self._build_top_bar('Progress', 'Sua evolução ao longo do tempo')
-            ui.label('Coming soon — gráficos detalhados de evolução por temporada.').style(
-                f'color: {C["text_dim"]}; font-size: 14px;'
-            )
-
-    # ════════════════════════════════════════════════════════════════════════
-    # ACHIEVEMENTS PAGE
-    # ════════════════════════════════════════════════════════════════════════
-
-    def _show_achievements(self) -> None:
-        self.main_area.clear()
-        with self.main_area:
-            self._build_top_bar('Achievements', 'Conquistas e marcos desbloqueados')
-
-            badges = [
-                ('sports_esports', 'First Replay', 'Analise seu primeiro replay', True, C['primary']),
-                ('bolt', 'Boost Master', 'Colete 10.000 boost pads', True, C['warning']),
-                ('emoji_events', '5 Win Streak', 'Ganhe 5 partidas seguidas', True, C['tertiary']),
-                ('psychology', 'AI User', 'Use o AI Coach pela primeira vez', True, C['secondary']),
-                ('trending_up', 'Pro 80%', 'Alcance 80% de proximidade com um pro', False, C['text_dim']),
-                ('military_tech', 'Champion', 'Alcance o rank Champion', False, C['text_dim']),
-                ('speed', 'Speed Demon', 'Mantenha 1800+ u/s de média', False, C['text_dim']),
-                ('shield', 'Iron Wall', 'Faça 5+ defesas em 10 partidas', False, C['text_dim']),
-            ]
-
-            with ui.row().classes('w-full flex-wrap gap-4'):
-                for icon, title, desc, unlocked, color in badges:
-                    opacity = '1' if unlocked else '0.3'
-                    with ui.card().classes('fade-in').style(
-                        glass(f'padding: 20px; width: 200px; opacity: {opacity}; animation-delay: 0.05s;')
-                    ):
-                        ui.html(
-                            f'<div style="{icon_circle(48, f"{color}20")} margin-bottom: 12px;">'
-                            f'<span class="material-symbols-outlined" style="color:{color}; font-size:24px;">{icon}</span>'
-                            f'</div>'
-                        )
-                        ui.label(title).style(f'font-size: 14px; font-weight: 700; color: {C["text"]};')
-                        ui.label(desc).style(f'font-size: 11px; color: {C["text_var"]}; margin-top: 4px; line-height: 1.4;')
 
     # ════════════════════════════════════════════════════════════════════════
     # SETTINGS PAGE
