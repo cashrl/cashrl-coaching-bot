@@ -161,7 +161,7 @@ class Database:
         Busca uma partida pelo replay_id.
         
         Args:
-            replay_id: ID do replay no Ballchasing
+            replay_id: ID único do replay
             
         Returns:
             Dados da partida ou None

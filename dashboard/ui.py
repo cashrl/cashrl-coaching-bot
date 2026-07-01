@@ -13,7 +13,6 @@ from pathlib import Path
 from nicegui import ui
 
 from database import Database
-from bot.comparer import ProComparer
 from bot.ai_coach import AICoach
 
 
@@ -132,11 +131,10 @@ class Dashboard:
     ]
 
     def __init__(self, db: Database, config: dict,
-                 comparer: Optional[ProComparer] = None,
+                 comparer=None,
                  ai_coach: Optional[AICoach] = None):
         self.db = db
         self.config = config
-        self.comparer = comparer
         self.ai_coach = ai_coach
         self.current_page = 0
         self.nav_buttons: list = []
@@ -1008,8 +1006,7 @@ class Dashboard:
         boost_score = max(0, min(100, int(boost_eff * 1.1)))
         shooting_score = int((goals / shots * 100)) if shots > 0 else 0
 
-        comparison = self._get_analysis_comparison(result)
-        overall_score = comparison.get('score', 0) if comparison else 0
+        overall_score = (movement_score + aerial_score + positioning_score + boost_score + shooting_score) // 5
         tips = self._generate_analysis_tips(result)
 
         with self.analysis_container:
@@ -1204,40 +1201,11 @@ class Dashboard:
     def _add_ai_analysis_card(self, result: Dict[str, Any]) -> None:
         if not self.ai_coach:
             return
-        pro_name = self.config.get('pro_to_study', 'Zen')
-        playlist = result.get('playlist', 'ranked-doubles')
-        baseline_data = self.db.get_baseline(playlist, pro_name)
-        baseline = baseline_data.get('averages', {}) if baseline_data else None
-
-        response = self.ai_coach.analyze_replay(result, baseline, pro_name)
+        response = self.ai_coach.analyze_replay(result, None, None)
         if response:
             with self.analysis_container:
                 ui.space().style('height: 16px;')
                 self._build_tips_analysis([response])
-
-    def _get_analysis_comparison(self, result: Dict) -> Optional[Dict]:
-        if not self.comparer:
-            return None
-        try:
-            playlist = 'ranked-doubles'
-            pro_name = self.config.get('pro_to_study', 'Zen')
-            baseline_data = self.db.get_baseline(playlist, pro_name)
-            if not baseline_data:
-                return None
-            baseline = baseline_data.get('averages', {})
-            if not baseline:
-                return None
-            player_stats = {
-                'boost_avg': result.get('boost_collected', 0) / 100,
-                'avg_distance_to_ball': result.get('avg_distance_to_ball', 0),
-                'goals': result.get('goals', 0),
-                'assists': result.get('assists', 0),
-                'saves': result.get('saves', 0),
-                'shooting_pct': (result.get('goals', 0) / max(1, result.get('shots', 1)) * 100),
-            }
-            return self.comparer.compare(player_stats, baseline)
-        except Exception:
-            return None
 
     def _generate_analysis_tips(self, result: Dict) -> list:
         tips = []

@@ -73,27 +73,27 @@ class AICoach:
 
     def analyze_replay(self, replay_stats: Dict[str, Any],
                        baseline: Optional[Dict[str, Any]] = None,
-                       pro_name: str = "Zen") -> str:
+                       pro_name: Optional[str] = None) -> str:
         """
         Analisa um replay completo e dá feedback detalhado.
 
         Args:
             replay_stats: Stats extraídas do replay
             baseline: Baseline do pro (opcional)
-            pro_name: Nome do profissional
+            pro_name: Nome do profissional (opcional)
 
         Returns:
             Análise detalhada em texto
         """
         stats_text = self._format_stats(replay_stats)
-        baseline_text = self._format_baseline(baseline, pro_name) if baseline else "Baseline não disponível."
+        baseline_text = self._format_baseline(baseline, pro_name or "N/A") if baseline else "Baseline não disponível."
 
         user_msg = f"""Analise este replay de Rocket League e dê um feedback completo:
 
 ## Stats do Jogador
 {stats_text}
 
-## Baseline do Pro ({pro_name})
+## Baseline do Pro
 {baseline_text}
 
 Forneça:
