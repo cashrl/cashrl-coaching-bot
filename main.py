@@ -14,15 +14,12 @@ O RLBotPro.exe + config.json = programa portátil
 """
 import json
 import sys
-import threading
-import time
 from pathlib import Path
 from typing import Optional
 
 from nicegui import app, ui
 
 from database import Database
-from bot.watcher import ReplayWatcher
 from bot.uploader import BallchasingUploader
 from bot.analyzer import ReplayAnalyzer
 from bot.comparer import ProComparer
@@ -37,11 +34,9 @@ class RLBotPro:
         """Inicializa o aplicativo."""
         self.config: dict = {}
         self.db: Optional[Database] = None
-        self.watcher: Optional[ReplayWatcher] = None
         self.dashboard: Optional[Dashboard] = None
         self.comparer: Optional[ProComparer] = None
         self.ai_coach: Optional[AICoach] = None
-        self._watcher_thread: Optional[threading.Thread] = None
 
     def load_config(self) -> bool:
         """
@@ -145,67 +140,6 @@ class RLBotPro:
             print("AI Coach não disponível (configure nvidia_api_key no config.json)")
             return False
 
-    def start_watcher(self) -> bool:
-        """
-        Inicia o watcher em uma thread separada.
-
-        Returns:
-            True se iniciou com sucesso
-        """
-        if not self.config.get('auto_start_watcher', True):
-            print("Watcher desativado nas configurações")
-            return False
-
-        try:
-            self.watcher = ReplayWatcher(
-                config=self.config,
-                db=self.db,
-                on_replay_processed=self._on_replay_processed
-            )
-
-            # Iniciar em thread daemon
-            self._watcher_thread = threading.Thread(
-                target=self._run_watcher,
-                daemon=True
-            )
-            self._watcher_thread.start()
-
-            print("Watcher iniciado em background!")
-            return True
-
-        except Exception as e:
-            print(f"Erro ao iniciar watcher: {e}")
-            return False
-
-    def _run_watcher(self) -> None:
-        """Executa o watcher em uma thread."""
-        try:
-            self.watcher.start()
-
-            # Processar uploads pendentes periodicamente
-            while True:
-                time.sleep(60)  # A cada minuto
-                if self.watcher:
-                    pending = self.watcher.process_pending_uploads()
-                    if pending > 0:
-                        print(f"Processados {pending} uploads pendentes")
-
-        except Exception as e:
-            print(f"Erro na thread do watcher: {e}")
-
-    def _on_replay_processed(self, stats: dict) -> None:
-        """
-        Callback chamado quando um replay é processado.
-
-        Args:
-            stats: Estatísticas do replay processado
-        """
-        print(f"Replay processado! Score de proximidade: {stats.get('proximity_score', 0):.1f}%")
-
-        # Atualizar dashboard se estiver rodando
-        if self.dashboard:
-            self.dashboard.refresh()
-
     def start_dashboard(self) -> None:
         """Inicia o dashboard NiceGUI."""
         self.dashboard = Dashboard(self.db, self.config, self.comparer, self.ai_coach)
@@ -213,8 +147,6 @@ class RLBotPro:
         @ui.page('/')
         def index():
             self.dashboard.build()
-            if self.watcher:
-                self.dashboard.update_status(True)
 
         # Configurar janela nativa (pywebview)
         app.native.window_args['title'] = 'RLBot Pro'
@@ -250,10 +182,7 @@ class RLBotPro:
         # 4. Inicializar AI Coach
         self.init_ai_coach()
 
-        # 5. Iniciar watcher
-        self.start_watcher()
-
-        # 6. Iniciar dashboard
+        # 5. Iniciar dashboard
         print("\nIniciando dashboard...")
         print("Janela nativa será aberta automaticamente.")
         print("Para fechar, feche a janela do aplicativo.\n")
@@ -267,10 +196,6 @@ class RLBotPro:
 
     def cleanup(self) -> None:
         """Limpa recursos ao encerrar."""
-        print("Encerrando watcher...")
-        if self.watcher:
-            self.watcher.stop()
-
         print("Fechando banco de dados...")
         if self.db:
             self.db.close()

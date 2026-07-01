@@ -1361,19 +1361,9 @@ class Dashboard:
         self._build_top_bar('Settings', 'Preferências do aplicativo')
 
         with ui.column().classes('w-96 gap-6'):
-            # Monitoring
+            # General
             with ui.card().classes('w-full fade-in').style(glass('padding: 24px;')):
-                ui.label('Monitoring').style(f'font-size: 16px; font-weight: 700; margin-bottom: 16px;')
-
-                self.sw_monitor = ui.switch(
-                    'Monitoramento Automático',
-                    value=self.config.get('auto_start_watcher', True)
-                ).style(f'margin-bottom: 12px;')
-
-                self.sw_upload = ui.switch(
-                    'Auto-Upload para Ballchasing',
-                    value=self.config.get('auto_upload', False)
-                ).style(f'margin-bottom: 12px;')
+                ui.label('Geral').style(f'font-size: 16px; font-weight: 700; margin-bottom: 16px;')
 
                 self.sw_notif = ui.switch(
                     'Notificações',
@@ -1406,16 +1396,12 @@ class Dashboard:
             ).on_click(self._save_settings)
 
     def _save_settings(self) -> None:
-        self.config['auto_start_watcher'] = self.sw_monitor.value
-        self.config['auto_upload'] = self.sw_upload.value
         self.config['notifications'] = self.sw_notif.value
 
         config_path = Path('config.json')
         try:
             with open(config_path, 'r') as f:
                 data = json.load(f)
-            data['auto_start_watcher'] = self.sw_monitor.value
-            data['auto_upload'] = self.sw_upload.value
             data['notifications'] = self.sw_notif.value
             with open(config_path, 'w') as f:
                 json.dump(data, f, indent=2)
