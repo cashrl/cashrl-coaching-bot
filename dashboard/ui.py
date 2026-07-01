@@ -158,6 +158,21 @@ class Dashboard:
                     .style(f'background: {C["bg"]}; padding: 24px;')
                 )
 
+        self.page_containers = []
+        with self.main_area:
+            for _ in range(4):
+                c = ui.column().classes('w-full')
+                self.page_containers.append(c)
+
+        with self.page_containers[0]:
+            self._build_dashboard_page()
+        with self.page_containers[1]:
+            self._build_replay_analysis_page()
+        with self.page_containers[2]:
+            self._build_match_history_page()
+        with self.page_containers[3]:
+            self._build_settings_page()
+
         self._show_page(0)
 
     def _global_css(self) -> str:
@@ -292,15 +307,8 @@ class Dashboard:
         self._show_page(index)
 
     def _show_page(self, index: int) -> None:
-        self.main_area.clear()
-        pages = [
-            self._build_dashboard_page,
-            self._build_replay_analysis_page,
-            self._build_match_history_page,
-            self._build_settings_page,
-        ]
-        with self.main_area:
-            pages[index]()
+        for i, c in enumerate(self.page_containers):
+            c.set_visibility(i == index)
 
     # ════════════════════════════════════════════════════════════════════════
     # DASHBOARD PAGE
