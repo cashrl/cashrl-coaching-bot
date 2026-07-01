@@ -764,6 +764,10 @@ class Dashboard:
                     f'background: {C["surface_high"]}; border: 1px solid rgba(255,255,255,0.1); '
                     f'border-radius: 8px; padding: 10px;'
                 ).on_click(self._load_replay_list)
+                ui.button(icon='folder_open', text='Browse').style(
+                    f'background: {C["primary_container"]}; color: {C["on_primary"]}; '
+                    f'border-radius: 8px; padding: 10px 16px; font-weight: 600; text-transform: none;'
+                ).on_click(self._browse_replay)
 
         with ui.row().classes('w-full gap-6'):
             self.analysis_container = ui.column().classes('flex-1')
@@ -850,6 +854,19 @@ class Dashboard:
         replay_folder = self.config.get('replays_folder', self.config.get('replay_folder', default))
         replay_path = os.path.join(replay_folder, e.value)
         self._analyze_replay(replay_path)
+
+    def _browse_replay(self) -> None:
+        def on_upload(e):
+            if e.content:
+                import tempfile
+                tmp = tempfile.NamedTemporaryFile(delete=False, suffix='.replay')
+                tmp.write(e.content.read())
+                tmp.close()
+                self._analyze_replay(tmp.name)
+        ui.file_upload(
+            on_upload=on_upload, multiple=False, auto_upload=True,
+            label='Selecionar arquivo .replay', accept='.replay'
+        ).classes('w-full')
 
     def _analyze_replay(self, replay_path: str) -> None:
         from bot.local_analyzer import LocalReplayAnalyzer, HAS_SUBTR
