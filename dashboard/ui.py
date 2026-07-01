@@ -48,6 +48,7 @@ C = {
     'text_dim':             '#8c909f',
     'outline':              '#8c909f',
     'outline_var':          '#424754',
+    'surface_variant':      '#2a2d35',
 }
 
 
@@ -163,6 +164,13 @@ class Dashboard:
                     .style(f'background: {C["bg"]}; padding: 24px;')
                 )
 
+        self.page_containers = []
+        with self.main_area:
+            for _ in range(4):
+                container = ui.column().classes('w-full')
+                self.page_containers.append(container)
+
+        self._build_page_content()
         self._show_page(0)
         ui.timer(30.0, self._refresh_data)
 
@@ -300,35 +308,37 @@ class Dashboard:
         self.current_page = index
         for btn, idx in self.nav_buttons:
             btn.style(nav_item_style(idx == index))
-        if index == 6:
-            pass
         self._show_page(index)
 
     def _show_page(self, index: int) -> None:
-        pages = [
-            self._show_dashboard,
-            self._show_replay_analysis,
-            self._show_match_history,
-            self._show_settings,
-        ]
-        pages[index]()
+        for i, container in enumerate(self.page_containers):
+            container.set_visibility(i == index)
+        if index == 0:
+            self._refresh_data()
+
+    def _build_page_content(self) -> None:
+        with self.page_containers[0]:
+            self._build_dashboard_page()
+        with self.page_containers[1]:
+            self._build_replay_analysis_page()
+        with self.page_containers[2]:
+            self._build_match_history_page()
+        with self.page_containers[3]:
+            self._build_settings_page()
 
     # ════════════════════════════════════════════════════════════════════════
     # DASHBOARD PAGE
     # ════════════════════════════════════════════════════════════════════════
 
-    def _show_dashboard(self) -> None:
-        self.main_area.clear()
-        with self.main_area:
-            self._build_top_bar('Dashboard', 'Acompanhe suas estatísticas e evolução')
-            self._build_hero_stats()
-            ui.space().style('height: 12px;')
-            self._build_pro_comparison_section()
-            ui.space().style('height: 12px;')
-            self._build_performance_timeline()
-            ui.space().style('height: 12px;')
-            self._build_match_history_preview()
-            self._refresh_data()
+    def _build_dashboard_page(self) -> None:
+        self._build_top_bar('Dashboard', 'Acompanhe suas estatísticas e evolução')
+        self._build_hero_stats()
+        ui.space().style('height: 12px;')
+        self._build_pro_comparison_section()
+        ui.space().style('height: 12px;')
+        self._build_performance_timeline()
+        ui.space().style('height: 12px;')
+        self._build_match_history_preview()
 
     # ── TOP BAR ─────────────────────────────────────────────────────────────
 
@@ -341,17 +351,8 @@ class Dashboard:
                 if subtitle:
                     ui.label(subtitle).style(f'font-size: 14px; color: {C["text_var"]};')
 
-            # Right side: search + status
-            with ui.row().classes('items-center gap-4'):
-                with ui.row().classes('items-center').style(
-                    f'background: {C["surface_low"]}; border-radius: 24px; padding: 6px 16px; '
-                    f'border: 1px solid rgba(255,255,255,0.06); width: 280px;'
-                ):
-                    ui.icon('search', size='18px').style(f'color: {C["text_var"]};')
-                    ui.input(placeholder='Search data...').classes('flex-1').props('borderless dense').style(
-                        f'background: transparent; color: {C["text"]};'
-                    )
-
+            # Right side: icons + player
+            with ui.row().classes('items-center gap-2'):
                 ui.button(icon='notifications').props('flat round').style(
                     f'color: {C["text_var"]};'
                 )
@@ -852,38 +853,36 @@ class Dashboard:
     # REPLAY ANALYSIS PAGE
     # ════════════════════════════════════════════════════════════════════════
 
-    def _show_replay_analysis(self) -> None:
-        self.main_area.clear()
-        with self.main_area:
-            with ui.row().classes('w-full items-center justify-between').style('margin-bottom: 24px;'):
-                with ui.column().classes('gap-0'):
-                    ui.label('Replay Analysis').style(
-                        f'font-size: 24px; font-weight: 700; color: {C["text"]};'
+    def _build_replay_analysis_page(self) -> None:
+        with ui.row().classes('w-full items-center justify-between').style('margin-bottom: 24px;'):
+            with ui.column().classes('gap-0'):
+                ui.label('Replay Analysis').style(
+                    f'font-size: 24px; font-weight: 700; color: {C["text"]};'
+                )
+                ui.label('Análise completa de um replay com coaching IA').style(
+                    f'font-size: 14px; color: {C["text_var"]};'
+                )
+
+            with ui.row().classes('items-center gap-3'):
+                self.replay_select = ui.select(
+                    options={}, value=None, label='Selecionar replay',
+                    on_change=self._on_replay_select
+                ).classes('w-80').props('outlined dense')
+                ui.button(icon='refresh').style(
+                    f'background: {C["surface_high"]}; border: 1px solid rgba(255,255,255,0.1); '
+                    f'border-radius: 8px; padding: 10px;'
+                ).on_click(self._load_replay_list)
+
+        with ui.row().classes('w-full gap-6'):
+            self.analysis_container = ui.column().classes('flex-1')
+            with self.analysis_container:
+                with ui.column().classes('w-full items-center justify-center').style('padding: 80px 0;'):
+                    ui.icon('analytics', size='64px').style(f'color: {C["text_dim"]}; opacity: 0.3;')
+                    ui.label('Selecione um replay para analisar').style(
+                        f'font-size: 14px; color: {C["text_dim"]}; margin-top: 12px;'
                     )
-                    ui.label('Análise completa de um replay com coaching IA').style(
-                        f'font-size: 14px; color: {C["text_var"]};'
-                    )
 
-                with ui.row().classes('items-center gap-3'):
-                    self.replay_select = ui.select(
-                        options={}, value=None, label='Selecionar replay',
-                        on_change=self._on_replay_select
-                    ).classes('w-80').props(f'outlined dense')
-                    ui.button(icon='refresh').style(
-                        f'background: {C["surface_high"]}; border: 1px solid rgba(255,255,255,0.1); '
-                        f'border-radius: 8px; padding: 10px;'
-                    ).on_click(self._load_replay_list)
-
-            with ui.row().classes('w-full gap-6'):
-                self.analysis_container = ui.column().classes('flex-1')
-                with self.analysis_container:
-                    with ui.column().classes('w-full items-center justify-center').style('padding: 80px 0;'):
-                        ui.icon('analytics', size='64px').style(f'color: {C["text_dim"]}; opacity: 0.3;')
-                        ui.label('Selecione um replay para analisar').style(
-                            f'font-size: 14px; color: {C["text_dim"]}; margin-top: 12px;'
-                        )
-
-                self._build_analysis_chat()
+            self._build_analysis_chat()
 
         self._load_replay_list()
 
@@ -1272,37 +1271,35 @@ class Dashboard:
     # MATCH HISTORY PAGE
     # ════════════════════════════════════════════════════════════════════════
 
-    def _show_match_history(self) -> None:
-        self.main_area.clear()
-        with self.main_area:
-            self._build_top_bar('Match History', 'Todas as partidas jogadas')
+    def _build_match_history_page(self) -> None:
+        self._build_top_bar('Match History', 'Todas as partidas jogadas')
 
-            # Filter tabs
-            with ui.row().classes('items-center').style(
-                f'background: {C["surface_low"]}; padding: 4px; border-radius: 12px; '
-                f'border: 1px solid rgba(255,255,255,0.05); margin-bottom: 24px; width: fit-content;'
-            ):
-                for label in ['All', '1v1', '2v2', '3v3']:
-                    is_active = label == 'All'
-                    ui.button(label).style(
-                        f'padding: 8px 24px; border-radius: 8px; font-size: 12px; font-weight: 700; '
-                        f'{"background: " + C["primary"] + "; color: " + C["on_primary"] + ";" if is_active else "background: transparent; color: " + C["text_var"] + ";"}'
-                        f'border: none; text-transform: none;'
-                    ).props('flat')
+        # Filter tabs
+        with ui.row().classes('items-center').style(
+            f'background: {C["surface_low"]}; padding: 4px; border-radius: 12px; '
+            f'border: 1px solid rgba(255,255,255,0.05); margin-bottom: 24px; width: fit-content;'
+        ):
+            for label in ['All', '1v1', '2v2', '3v3']:
+                is_active = label == 'All'
+                ui.button(label).style(
+                    f'padding: 8px 24px; border-radius: 8px; font-size: 12px; font-weight: 700; '
+                    f'{"background: " + C["primary"] + "; color: " + C["on_primary"] + ";" if is_active else "background: transparent; color: " + C["text_var"] + ";"}'
+                    f'border: none; text-transform: none;'
+                ).props('flat')
 
-            matches = self.db.get_matches(limit=50)
-            if not matches:
-                with ui.column().classes('w-full items-center justify-center').style('padding: 80px 0;'):
-                    ui.icon('inbox', size='64px').style(f'color: {C["text_dim"]}; opacity: 0.3;')
-                    ui.label('Nenhuma partida registrada').style(f'font-size: 16px; color: {C["text_dim"]}; margin-top: 12px;')
-                    ui.label('Jogue algumas partidas para ver seus resultados aqui.').style(
-                        f'font-size: 13px; color: {C["text_dim"]};'
-                    )
-                return
+        matches = self.db.get_matches(limit=50)
+        if not matches:
+            with ui.column().classes('w-full items-center justify-center').style('padding: 80px 0;'):
+                ui.icon('inbox', size='64px').style(f'color: {C["text_dim"]}; opacity: 0.3;')
+                ui.label('Nenhuma partida registrada').style(f'font-size: 16px; color: {C["text_dim"]}; margin-top: 12px;')
+                ui.label('Jogue algumas partidas para ver seus resultados aqui.').style(
+                    f'font-size: 13px; color: {C["text_dim"]};'
+                )
+            return
 
-            with ui.column().classes('w-full gap-3'):
-                for match in matches:
-                    self._build_history_card(match)
+        with ui.column().classes('w-full gap-3'):
+            for match in matches:
+                self._build_history_card(match)
 
     def _build_history_card(self, match: dict) -> None:
         result = match.get('result', '')
@@ -1365,55 +1362,53 @@ class Dashboard:
     # SETTINGS PAGE
     # ════════════════════════════════════════════════════════════════════════
 
-    def _show_settings(self) -> None:
-        self.main_area.clear()
-        with self.main_area:
-            self._build_top_bar('Settings', 'Preferências do aplicativo')
+    def _build_settings_page(self) -> None:
+        self._build_top_bar('Settings', 'Preferências do aplicativo')
 
-            with ui.column().classes('w-96 gap-6'):
-                # Monitoring
-                with ui.card().classes('w-full fade-in').style(glass('padding: 24px;')):
-                    ui.label('Monitoring').style(f'font-size: 16px; font-weight: 700; margin-bottom: 16px;')
+        with ui.column().classes('w-96 gap-6'):
+            # Monitoring
+            with ui.card().classes('w-full fade-in').style(glass('padding: 24px;')):
+                ui.label('Monitoring').style(f'font-size: 16px; font-weight: 700; margin-bottom: 16px;')
 
-                    self.sw_monitor = ui.switch(
-                        'Monitoramento Automático',
-                        value=self.config.get('auto_start_watcher', True)
-                    ).style(f'margin-bottom: 12px;')
+                self.sw_monitor = ui.switch(
+                    'Monitoramento Automático',
+                    value=self.config.get('auto_start_watcher', True)
+                ).style(f'margin-bottom: 12px;')
 
-                    self.sw_upload = ui.switch(
-                        'Auto-Upload para Ballchasing',
-                        value=self.config.get('auto_upload', False)
-                    ).style(f'margin-bottom: 12px;')
+                self.sw_upload = ui.switch(
+                    'Auto-Upload para Ballchasing',
+                    value=self.config.get('auto_upload', False)
+                ).style(f'margin-bottom: 12px;')
 
-                    self.sw_notif = ui.switch(
-                        'Notificações',
-                        value=self.config.get('notifications', False)
+                self.sw_notif = ui.switch(
+                    'Notificações',
+                    value=self.config.get('notifications', False)
+                )
+
+            # AI Coach
+            with ui.card().classes('w-full fade-in').style(glass('padding: 24px; animation-delay: 0.1s;')):
+                ui.label('AI Coach').style(f'font-size: 16px; font-weight: 700; margin-bottom: 16px;')
+
+                api_key = self.config.get('nvidia_api_key', '')
+                if api_key:
+                    ui.label(f'✓ Connected ({api_key[:12]}...)').style(
+                        f'font-size: 13px; color: {C["tertiary"]}; margin-bottom: 8px;'
+                    )
+                else:
+                    ui.label('✗ Not configured').style(
+                        f'font-size: 13px; color: {C["error"]}; margin-bottom: 8px;'
                     )
 
-                # AI Coach
-                with ui.card().classes('w-full fade-in').style(glass('padding: 24px; animation-delay: 0.1s;')):
-                    ui.label('AI Coach').style(f'font-size: 16px; font-weight: 700; margin-bottom: 16px;')
+                ui.label('Model: nvidia/llama-3.1-nemotron-70b-instruct').style(
+                    f'font-size: 11px; color: {C["text_dim"]};'
+                )
 
-                    api_key = self.config.get('nvidia_api_key', '')
-                    if api_key:
-                        ui.label(f'✓ Connected ({api_key[:12]}...)').style(
-                            f'font-size: 13px; color: {C["tertiary"]}; margin-bottom: 8px;'
-                        )
-                    else:
-                        ui.label('✗ Not configured').style(
-                            f'font-size: 13px; color: {C["error"]}; margin-bottom: 8px;'
-                        )
-
-                    ui.label('Model: nvidia/llama-3.1-nemotron-70b-instruct').style(
-                        f'font-size: 11px; color: {C["text_dim"]};'
-                    )
-
-                # Save
-                ui.button('Salvar Configurações').style(
-                    f'background: {C["primary_container"]}; color: {C["on_primary"]}; '
-                    f'border-radius: 16px; padding: 14px 24px; font-weight: 700; '
-                    f'width: 100%; text-transform: none;'
-                ).on_click(self._save_settings)
+            # Save
+            ui.button('Salvar Configurações').style(
+                f'background: {C["primary_container"]}; color: {C["on_primary"]}; '
+                f'border-radius: 16px; padding: 14px 24px; font-weight: 700; '
+                f'width: 100%; text-transform: none;'
+            ).on_click(self._save_settings)
 
     def _save_settings(self) -> None:
         self.config['auto_start_watcher'] = self.sw_monitor.value
