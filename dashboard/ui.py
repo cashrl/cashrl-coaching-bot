@@ -1,10 +1,10 @@
 """
-RLBotPro - Dashboard Module
-Interface NiceGUI para visualização de estatísticas e comparação com pros.
-Design baseado no Trophy.ai - limpo e profissional.
-Migrado de Flet para NiceGUI.
+RLBot Pro - Premium Dashboard UI
+Fiel ao design Stitch: glassmorphism, neon accents, Material Design 3 colors.
+Migrado de Flet para NiceGUI. Design inspirado em esports/rocket league.
 """
 import json
+import math
 import os
 from datetime import datetime
 from typing import Dict, Any, Optional, List
@@ -14,415 +14,940 @@ from nicegui import ui
 
 from database import Database
 from bot.comparer import ProComparer
+from bot.ai_coach import AICoach
 
 
-# Cores do tema escuro - Trophy.ai style
-COLORS = {
-    'background': '#0a0b0f',
-    'surface': '#12141c',
-    'card': '#161822',
-    'card_hover': '#1c1f2e',
-    'primary': '#3b82f6',
-    'primary_hover': '#60a5fa',
-    'accent': '#8b5cf6',
-    'cyan': '#06b6d4',
-    'success': '#22c55e',
-    'warning': '#f59e0b',
-    'error': '#ef4444',
-    'text': '#f8fafc',
-    'text_secondary': '#94a3b8',
-    'text_muted': '#64748b',
-    'border': '#1e2130',
-    'border_light': '#252836',
-    'sidebar': '#0d0f15',
-    'sidebar_active': '#161822',
-    'hover': '#1c1f2e',
+# ══════════════════════════════════════════════════════════════════════════════
+# DESIGN SYSTEM — Material Design 3 inspired, esport gaming
+# ══════════════════════════════════════════════════════════════════════════════
+
+C = {
+    'bg':                   '#0a0b0f',
+    'surface':              '#10131a',
+    'surface_dim':          '#10131a',
+    'surface_bright':       '#363941',
+    'surface_low':          '#191b23',
+    'surface_cont':         '#1d2027',
+    'surface_high':         '#272a31',
+    'surface_highest':      '#32353c',
+    'card':                 '#161822',
+    'card_border':          'rgba(255,255,255,0.1)',
+    'primary':              '#adc6ff',
+    'primary_container':    '#4d8eff',
+    'primary_dim':          '#00285d',
+    'on_primary':           '#002e6a',
+    'secondary':            '#d0bcff',
+    'secondary_container':  '#571bc1',
+    'tertiary':             '#4cd7f6',
+    'tertiary_cont':        '#009eb9',
+    'error':                '#ffb4ab',
+    'error_cont':           '#93000a',
+    'success':              '#4ade80',
+    'text':                 '#e1e2ec',
+    'text_var':             '#c2c6d6',
+    'text_dim':             '#8c909f',
+    'outline':              '#8c909f',
+    'outline_var':          '#424754',
 }
 
 
-def _card_style(extra: str = "") -> str:
+# ══════════════════════════════════════════════════════════════════════════════
+# STYLE HELPERS
+# ══════════════════════════════════════════════════════════════════════════════
+
+def glass(extra: str = "") -> str:
     return (
-        f'background: {COLORS["card"]}; border: 1px solid {COLORS["border_light"]}; '
-        f'border-radius: 12px; box-shadow: 0 3px 10px #00000040; {extra}'
+        f'background: rgba(22,24,34,0.8); backdrop-filter: blur(12px); '
+        f'border: 1px solid rgba(255,255,255,0.1); border-radius: 24px; '
+        f'{extra}'
+    )
+
+def surface(extra: str = "") -> str:
+    return (
+        f'background: {C["surface"]}; border: 1px solid rgba(255,255,255,0.06); '
+        f'border-radius: 16px; {extra}'
+    )
+
+def label_caps(extra: str = "") -> str:
+    return f'font-size: 11px; letter-spacing: 0.1em; font-weight: 600; text-transform: uppercase; {extra}'
+
+def stat_mono(extra: str = "") -> str:
+    return f'font-family: "JetBrains Mono", monospace; {extra}'
+
+def icon_circle(size: int, bg: str, extra: str = "") -> str:
+    return (
+        f'width: {size}px; height: {size}px; border-radius: {size//4}px; '
+        f'background: {bg}; display: flex; align-items: center; '
+        f'justify-content: center; {extra}'
+    )
+
+def glow(color: str, intensity: float = 0.2) -> str:
+    hex_c = color.lstrip('#')
+    r, g, b = int(hex_c[:2], 16), int(hex_c[2:4], 16), int(hex_c[4:6], 16)
+    return f'box-shadow: 0 0 25px rgba({r},{g},{b},{intensity});'
+
+def sidebar_btn(active: bool = False) -> str:
+    if active:
+        return (
+            f'width: 48px; height: 48px; border-radius: 12px; display: flex; '
+            f'align-items: center; justify-content: center; '
+            f'background: rgba(173,198,255,0.1); border-left: 3px solid {C["primary"]}; '
+            f'color: {C["primary"]}; transition: all 0.2s ease;'
+        )
+    return (
+        f'width: 48px; height: 48px; border-radius: 12px; display: flex; '
+        f'align-items: center; justify-content: center; '
+        f'color: {C["text_var"]}; background: transparent; border: none; '
+        f'transition: all 0.2s ease;'
+    )
+
+def nav_item_style(active: bool) -> str:
+    if active:
+        return (
+            f'width: 48px; height: 48px; border-radius: 12px; display: flex; '
+            f'align-items: center; justify-content: center; '
+            f'background: rgba(173,198,255,0.1); border-left: 3px solid {C["primary"]}; '
+            f'color: {C["primary"]}; transition: all 0.2s ease;'
+        )
+    return (
+        f'width: 48px; height: 48px; border-radius: 12px; display: flex; '
+        f'align-items: center; justify-content: center; '
+        f'color: {C["text_var"]}; background: transparent; border: none; '
+        f'cursor: pointer; transition: all 0.2s ease;'
     )
 
 
-def _surface_style(extra: str = "") -> str:
-    return (
-        f'background: {COLORS["surface"]}; border: 1px solid {COLORS["border"]}; '
-        f'border-radius: 8px; {extra}'
-    )
-
+# ══════════════════════════════════════════════════════════════════════════════
+# MAIN DASHBOARD CLASS
+# ══════════════════════════════════════════════════════════════════════════════
 
 class Dashboard:
-    """Classe principal do dashboard NiceGUI."""
+    """Premium gaming analytics dashboard."""
 
-    def __init__(self, db: Database, config: dict, comparer: Optional['ProComparer'] = None):
+    NAV_ITEMS = [
+        ('dashboard',       'Dashboard'),
+        ('analytics',       'Replay Analysis'),
+        ('history',         'Match History'),
+        ('compare_arrows',  'Pro Comparison'),
+        ('trending_up',     'Progress'),
+        ('emoji_events',    'Achievements'),
+        ('settings',        'Settings'),
+    ]
+
+    def __init__(self, db: Database, config: dict,
+                 comparer: Optional[ProComparer] = None,
+                 ai_coach: Optional[AICoach] = None):
         self.db = db
         self.config = config
         self.comparer = comparer
-        self.current_playlist: Optional[str] = None
-        self.nav_index = 0
-        self.current_page = 0  # 0=Dashboard, 1=Análises, 2=Histórico, 3=Config
+        self.ai_coach = ai_coach
+        self.current_page = 0
+        self.nav_buttons: list = []
+        self.main_area = None
+
+    # ── BUILD ───────────────────────────────────────────────────────────────
 
     def build(self) -> None:
-        """Constrói a UI principal no NiceGUI."""
         ui.dark_mode(True)
-        ui.add_head_html(f'''
-            <style>
-                body {{ background: {COLORS["background"]}; margin: 0; padding: 0; }}
-                .nicegui-content {{ padding: 0 !important; }}
-                @keyframes fadeInUp {{
-                    from {{ opacity: 0; transform: translateY(14px); }}
-                    to {{ opacity: 1; transform: translateY(0); }}
-                }}
-                .fade-in {{
-                    animation: fadeInUp 0.45s cubic-bezier(0.22, 1, 0.36, 1) forwards;
-                    opacity: 0;
-                }}
-            </style>
-        ''')
+        ui.add_head_html(self._global_css())
 
-        with ui.column().classes('w-full h-screen').style('margin: 0; padding: 0;'):
-            with ui.row().classes('w-full flex-1').style('margin: 0; padding: 0;'):
+        with ui.column().classes('w-full h-screen').style('margin:0; padding:0;'):
+            with ui.row().classes('w-full flex-1').style('margin:0; padding:0;'):
                 self._build_sidebar()
-                ui.separator().style(f'width: 1px; background: {COLORS["border"]}; margin: 0;')
-                self.main_area = ui.column().classes('flex-1 overflow-auto').style(
-                    f'background: {COLORS["background"]}; padding: 18px 28px;'
+                ui.separator().style(f'width:1px; background:{C["outline_var"]}; margin:0;')
+                self.main_area = (
+                    ui.column()
+                    .classes('flex-1 overflow-auto')
+                    .style(f'background: {C["bg"]}; padding: 24px;')
                 )
 
-        self._show_dashboard()
-
-        # Auto-refresh a cada 30 segundos
+        self._show_page(0)
         ui.timer(30.0, self._refresh_data)
 
-    # ── SIDEBAR ────────────────────────────────────────────────────────────
+    def _global_css(self) -> str:
+        return '''
+        <style>
+            @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&family=JetBrains+Mono:wght@500;600&display=swap');
+
+            body { background: #0a0b0f; color: #e1e2ec; -webkit-font-smoothing: antialiased; }
+            .nicegui-content { padding: 0 !important; }
+
+            * { font-family: 'Inter', sans-serif; }
+
+            @keyframes fadeInUp {
+                from { opacity: 0; transform: translateY(14px); }
+                to { opacity: 1; transform: translateY(0); }
+            }
+            .fade-in { animation: fadeInUp 0.45s cubic-bezier(0.22,1,0.36,1) forwards; opacity: 0; }
+
+            @keyframes pulse-slow {
+                0%, 100% { opacity: 0.8; transform: scale(1); }
+                50% { opacity: 1; transform: scale(1.05); }
+            }
+            .animate-pulse-slow { animation: pulse-slow 3s infinite ease-in-out; }
+
+            @keyframes ping-glow {
+                0% { box-shadow: 0 0 0 0 rgba(76,215,246,0.5); }
+                70% { box-shadow: 0 0 0 8px rgba(76,215,246,0); }
+                100% { box-shadow: 0 0 0 0 rgba(76,215,246,0); }
+            }
+            .ping-glow { animation: ping-glow 2s infinite; }
+
+            .glass-card {
+                background: rgba(22,24,34,0.8);
+                backdrop-filter: blur(12px);
+                border: 1px solid rgba(255,255,255,0.1);
+                border-radius: 24px;
+                transition: transform 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
+            }
+            .glass-card:hover {
+                border-color: rgba(173,198,255,0.3);
+                transform: translateY(-2px);
+                box-shadow: 0 10px 30px -10px rgba(0,0,0,0.5), 0 0 15px rgba(173,198,255,0.1);
+            }
+
+            .glass-card-sm {
+                background: rgba(22,24,34,0.8);
+                backdrop-filter: blur(12px);
+                border: 1px solid rgba(255,255,255,0.1);
+                border-radius: 12px;
+            }
+
+            .glow-primary { box-shadow: 0 0 25px rgba(173,198,255,0.2); }
+            .glow-text { text-shadow: 0 0 10px rgba(173,198,255,0.5); }
+
+            .radar-bg {
+                background-image: radial-gradient(circle, rgba(255,255,255,0.03) 1px, transparent 1px);
+                background-size: 30px 30px;
+            }
+
+            .tech-grid {
+                background-image: radial-gradient(circle at 2px 2px, rgba(255,255,255,0.03) 1px, transparent 0);
+                background-size: 40px 40px;
+            }
+
+            .win-border { box-shadow: inset 4px 0 0 0 #4ade80; }
+            .loss-border { box-shadow: inset 4px 0 0 0 #f87171; }
+
+            .ring-chart { transform: rotate(-90deg); }
+            .ring-bg { fill: none; stroke: rgba(255,255,255,0.05); }
+            .ring-progress { fill: none; stroke-linecap: round; transition: stroke-dashoffset 1s ease-out; }
+
+            .stat-bar { height: 6px; background: rgba(255,255,255,0.05); border-radius: 3px; overflow: hidden; }
+
+            .custom-scroll::-webkit-scrollbar { width: 4px; }
+            .custom-scroll::-webkit-scrollbar-track { background: transparent; }
+            .custom-scroll::-webkit-scrollbar-thumb { background: rgba(173,198,255,0.2); border-radius: 10px; }
+
+            .nav-btn:hover { background: rgba(50,53,60,0.8) !important; color: #e1e2ec !important; }
+        </style>
+        '''
+
+    # ── SIDEBAR ─────────────────────────────────────────────────────────────
 
     def _build_sidebar(self) -> None:
-        self.nav_buttons: list = []
-
-        with ui.column().classes('h-full').style(
-            f'width: 200px; background: {COLORS["sidebar"]}; padding: 14px 10px;'
+        self.nav_buttons = []
+        with ui.column().classes('items-center py-4').style(
+            f'width: 72px; background: rgba(16,19,26,0.95); '
+            f'border-right: 1px solid rgba(255,255,255,0.1); '
+            f'backdrop-filter: blur(20px);'
         ):
             # Logo
-            with ui.row().classes('items-center gap-2').style('padding-bottom: 18px;'):
-                ui.icon('sports_esports', size='18px').classes('text-white').style(
-                    f'background: {COLORS["primary"]}; border-radius: 7px; '
-                    f'width: 32px; height: 32px; display: flex; align-items: center; '
-                    f'justify-content: center;'
-                )
-                with ui.column().classes('gap-0'):
-                    ui.label('RLBot').classes('text-sm font-bold').style(f'color: {COLORS["text"]}')
-                    ui.label('Pro Analytics').classes('text-xs').style(f'color: {COLORS["text_muted"]}')
-
-            ui.space()
+            ui.label('RL').style(
+                f'font-size: 20px; font-weight: 900; color: {C["primary"]}; '
+                f'margin-bottom: 28px; letter-spacing: -0.02em;'
+            )
 
             # Nav items
-            nav_items = [
-                ('dashboard', 'Dashboard', 0),
-                ('analytics', 'Análises', 1),
-                ('history', 'Histórico', 2),
-                ('settings', 'Config', 3),
-            ]
-
-            for icon_name, label, idx in nav_items:
-                is_active = idx == self.nav_index
-                btn = ui.button(icon=icon_name, text=label).classes(
-                    'w-full justify-start text-xs'
-                ).style(
-                    self._nav_btn_style(is_active)
+            for i, (icon, label) in enumerate(self.NAV_ITEMS):
+                is_active = (i == self.current_page)
+                btn = (
+                    ui.button(icon=icon)
+                    .style(nav_item_style(is_active))
+                    .props('flat')
                 )
-                btn.on_click(lambda e, i=idx: self._on_nav_click(i))
-                self.nav_buttons.append((btn, idx))
+                btn.on_click(lambda e, idx=i: self._on_nav(idx))
+                ui.tooltip(label).classes('text-xs')
+                self.nav_buttons.append((btn, i))
+                if i == 2:
+                    ui.space().style('height: 8px;')
 
             ui.space()
 
-            # Status
-            with ui.row().classes('items-center gap-1').style(
-                f'background: {COLORS["surface"]}; border-radius: 6px; padding: 8px;'
-            ):
-                self.status_dot = ui.label().style(
-                    f'width: 7px; height: 7px; border-radius: 4px; '
-                    f'background: {COLORS["success"]};'
-                )
-                self.status_label = ui.label('Monitorando...').classes('text-xs').style(
-                    f'color: {COLORS["text_secondary"]}'
-                )
+            # Settings (below)
+            settings_btn = (
+                ui.button(icon='settings')
+                .style(nav_item_style(self.current_page == 6))
+                .props('flat')
+            )
+            settings_btn.on_click(lambda e: self._on_nav(6))
+            ui.tooltip('Settings').classes('text-xs')
 
-    def _nav_btn_style(self, is_active: bool) -> str:
-        bg = COLORS['sidebar_active'] if is_active else 'transparent'
-        color = COLORS['primary'] if is_active else COLORS['text_muted']
-        text_color = COLORS['text'] if is_active else COLORS['text_muted']
-        weight = '600' if is_active else '400'
-        return (
-            f'background: {bg}; border-radius: 8px; padding: 9px 12px; '
-            f'color: {text_color}; font-weight: {weight}; text-transform: none; '
-            f'border: none; box-shadow: none; transition: all 0.2s ease;'
-        )
+            ui.space().style('height: 8px;')
 
-    def _on_nav_click(self, index: int) -> None:
-        self.nav_index = index
+            # Profile avatar
+            ui.avatar(
+                icon='account_circle',
+                color=C['surface_cont'],
+                text_color=C['text_var'],
+                size='40px'
+            ).style(
+                f'border: 2px solid rgba(173,198,255,0.3); border-radius: 50%; cursor: pointer;'
+            )
+
+    def _on_nav(self, index: int) -> None:
         self.current_page = index
-        # Update nav button styles
         for btn, idx in self.nav_buttons:
-            is_active = idx == index
-            btn.style(self._nav_btn_style(is_active))
+            btn.style(nav_item_style(idx == index))
+        if index == 6:
+            pass
+        self._show_page(index)
 
-        # Show the corresponding page
-        pages = [self._show_dashboard, self._show_analyses, self._show_history, self._show_settings]
+    def _show_page(self, index: int) -> None:
+        pages = [
+            self._show_dashboard,
+            self._show_replay_analysis,
+            self._show_match_history,
+            self._show_pro_comparison,
+            self._show_progress,
+            self._show_achievements,
+            self._show_settings,
+        ]
         pages[index]()
 
-    # ── DASHBOARD PAGE ─────────────────────────────────────────────────────
+    # ════════════════════════════════════════════════════════════════════════
+    # DASHBOARD PAGE
+    # ════════════════════════════════════════════════════════════════════════
 
     def _show_dashboard(self) -> None:
         self.main_area.clear()
         with self.main_area:
-            self._build_top_bar()
-            ui.space()
-            self._build_stats_grid()
-            ui.space()
-            self._build_chart_section()
-            ui.space()
-            self._build_bottom_section()
+            self._build_top_bar('Dashboard', 'Acompanhe suas estatísticas e evolução')
+            self._build_hero_stats()
+            ui.space().style('height: 12px;')
+            self._build_pro_comparison_section()
+            ui.space().style('height: 12px;')
+            self._build_performance_timeline()
+            ui.space().style('height: 12px;')
+            self._build_match_history_preview()
             self._refresh_data()
 
-    def _build_top_bar(self) -> None:
-        with ui.row().classes('w-full items-center justify-between'):
+    # ── TOP BAR ─────────────────────────────────────────────────────────────
+
+    def _build_top_bar(self, title: str, subtitle: str = "") -> None:
+        with ui.row().classes('w-full items-center justify-between').style('margin-bottom: 24px;'):
             with ui.column().classes('gap-0'):
-                ui.label('Dashboard').classes('text-2xl font-bold').style(f'color: {COLORS["text"]}')
-                ui.label('Acompanhe suas estatísticas e evolução').classes('text-xs').style(
-                    f'color: {COLORS["text_muted"]}'
+                ui.label(title).style(
+                    f'font-size: 24px; font-weight: 700; color: {C["text"]}; line-height: 1.3;'
                 )
-            self._build_playlist_tabs()
+                if subtitle:
+                    ui.label(subtitle).style(f'font-size: 14px; color: {C["text_var"]};')
 
-    def _build_playlist_tabs(self) -> None:
-        playlists = [
-            ("Todas", None),
-            ("2v2", "ranked-doubles"),
-            ("3v3", "ranked-standard"),
-            ("1v1", "ranked-duels"),
-        ]
+            # Right side: search + status
+            with ui.row().classes('items-center gap-4'):
+                with ui.row().classes('items-center').style(
+                    f'background: {C["surface_low"]}; border-radius: 24px; padding: 6px 16px; '
+                    f'border: 1px solid rgba(255,255,255,0.06); width: 280px;'
+                ):
+                    ui.icon('search', size='18px').style(f'color: {C["text_var"]};')
+                    ui.input(placeholder='Search data...').classes('flex-1').props('borderless dense').style(
+                        f'background: transparent; color: {C["text"]};'
+                    )
 
-        with ui.row().classes('items-center').style(
-            f'background: {COLORS["surface"]}; border-radius: 8px; padding: 3px; '
-            f'border: 1px solid {COLORS["border"]};'
-        ):
-            self.playlist_buttons: list = []
-            for label, playlist in playlists:
-                is_active = playlist is None
-                btn = ui.button(label).classes('text-xs').style(
-                    f'background: {COLORS["primary"] if is_active else "transparent"}; '
-                    f'color: {COLORS["text"] if is_active else COLORS["text_muted"]}; '
-                    f'border-radius: 6px; padding: 6px 12px; font-weight: {"600" if is_active else "500"}; '
-                    f'border: none; box-shadow: none; text-transform: none; transition: all 0.2s ease;'
+                ui.button(icon='notifications').props('flat round').style(
+                    f'color: {C["text_var"]};'
                 )
-                btn.on_click(lambda e, p=playlist: self._on_playlist_change(p))
-                self.playlist_buttons.append((btn, playlist))
-
-    def _on_playlist_change(self, playlist: Optional[str]) -> None:
-        self.current_playlist = playlist
-        for btn, pl in self.playlist_buttons:
-            is_active = pl == playlist
-            btn.style(
-                f'background: {COLORS["primary"] if is_active else "transparent"}; '
-                f'color: {COLORS["text"] if is_active else COLORS["text_muted"]}; '
-                f'border-radius: 6px; padding: 6px 12px; font-weight: {"600" if is_active else "500"}; '
-                f'border: none; box-shadow: none; text-transform: none; transition: all 0.2s ease;'
-            )
-        self._refresh_data()
-
-    # ── STATS GRID ─────────────────────────────────────────────────────────
-
-    def _build_stats_grid(self) -> None:
-        with ui.row().classes('w-full gap-3'):
-            self.boost_value = self._build_stat_card('bolt', COLORS['warning'], 'BOOST MÉDIO', '0', 'pads coletados por partida')
-            self.proximity_value, self.proximity_bar = self._build_stat_card_with_extra(
-                'trending_up', COLORS['cyan'], 'PROXIMIDADE', '0%', 'vs pro estudado'
-            )
-            self.matches_value = self._build_stat_card('play_circle', COLORS['primary'], 'PARTIDAS HOJE', '0', 'jogadas')
-            self.winrate_value = self._build_stat_card('emoji_events', COLORS['success'], 'WIN RATE', '0%', 'taxa de vitória')
-
-    def _build_stat_card(self, icon: str, icon_color: str, title: str,
-                         initial_value: str, subtitle: str = "") -> ui.label:
-        with ui.card().classes('flex-1').style(_card_style('padding: 14px 16px;')):
-            with ui.row().classes('items-center gap-2'):
-                ui.icon(icon, size='16px').classes('text-white').style(
-                    f'background: {icon_color}; border-radius: 8px; '
-                    f'width: 34px; height: 34px; display: flex; align-items: center; '
-                    f'justify-content: center; box-shadow: 0 2px 6px {icon_color}40;'
+                ui.button(icon='sensors').props('flat round').style(
+                    f'color: {C["text_var"]};'
                 )
-                ui.label(title).classes('text-xs font-semibold').style(f'color: {COLORS["text_secondary"]}')
-
-            ui.space()
-            value_label = ui.label(initial_value).classes('text-3xl font-bold').style(f'color: {icon_color}')
-            if subtitle:
-                ui.label(subtitle).classes('text-xs').style(f'color: {COLORS["text_muted"]}')
-        return value_label
-
-    def _build_stat_card_with_extra(self, icon: str, icon_color: str, title: str,
-                                     initial_value: str, subtitle: str = "") -> tuple:
-        with ui.card().classes('flex-1').style(_card_style('padding: 14px 16px;')):
-            with ui.row().classes('items-center gap-2'):
-                ui.icon(icon, size='16px').classes('text-white').style(
-                    f'background: {icon_color}; border-radius: 8px; '
-                    f'width: 34px; height: 34px; display: flex; align-items: center; '
-                    f'justify-content: center; box-shadow: 0 2px 6px {icon_color}40;'
+                ui.button(icon='folder').props('flat round').style(
+                    f'color: {C["text_var"]};'
                 )
-                ui.label(title).classes('text-xs font-semibold').style(f'color: {COLORS["text_secondary"]}')
 
-            ui.space()
-            value_label = ui.label(initial_value).classes('text-3xl font-bold').style(f'color: {icon_color}')
-            if subtitle:
-                ui.label(subtitle).classes('text-xs').style(f'color: {COLORS["text_muted"]}')
-            progress_bar = ui.linear_progress(value=0).style(
-                f'width: 140px; background: {COLORS["surface"]};'
-            ).props(f'color={icon_color}')
-        return value_label, progress_bar
+                ui.separator().style(f'width: 1px; height: 32px; background: rgba(255,255,255,0.1);')
 
-    # ── CHART SECTION ──────────────────────────────────────────────────────
+                with ui.row().classes('items-center gap-3'):
+                    ui.label(self.config.get('player_name', 'Player')).style(
+                        f'font-size: 14px; font-weight: 500; color: {C["text_var"]};'
+                    )
+                    ui.avatar(
+                        icon='person',
+                        color=C['primary_container'],
+                        text_color='white',
+                        size='40px'
+                    ).style(f'border: 2px solid rgba(173,198,255,0.3); border-radius: 50%;')
 
-    def _build_chart_section(self) -> None:
-        with ui.row().classes('w-full gap-3'):
-            self._build_evolution_panel()
-            self._build_comparison_panel()
+    # ── HERO STATS GRID ─────────────────────────────────────────────────────
 
-    def _build_evolution_panel(self) -> None:
-        with ui.card().classes('flex-1').style(_card_style('padding: 16px 18px;')):
-            with ui.row().classes('items-center gap-2'):
-                ui.icon('trending_up', size='14px').classes('text-white').style(
-                    f'background: {COLORS["success"]}; border-radius: 6px; '
-                    f'width: 28px; height: 28px; display: flex; align-items: center; '
-                    f'justify-content: center;'
-                )
-                ui.label('Evolução').classes('text-sm font-bold').style(f'color: {COLORS["text"]}')
+    def _build_hero_stats(self) -> None:
+        with ui.row().classes('w-full gap-4'):
+            self._build_player_card()
+            self._build_session_card()
+            self._build_winrate_card()
+            self._build_proximity_card()
 
-            ui.separator().style(f'background: {COLORS["border"]};')
-            self.evolution_container = ui.column().classes('w-full gap-2')
-
-    def _build_comparison_panel(self) -> None:
-        with ui.card().classes('w-80').style(_card_style('padding: 16px 18px;')):
-            with ui.row().classes('items-center gap-2'):
-                ui.icon('compare_arrows', size='14px').classes('text-white').style(
-                    f'background: {COLORS["accent"]}; border-radius: 6px; '
-                    f'width: 28px; height: 28px; display: flex; align-items: center; '
-                    f'justify-content: center;'
-                )
-                ui.label('Comparação com Pro').classes('text-sm font-bold').style(f'color: {COLORS["text"]}')
-
-            self.comparison_container = ui.column().classes('w-full gap-2')
-
-    # ── BOTTOM SECTION ─────────────────────────────────────────────────────
-
-    def _build_bottom_section(self) -> None:
-        with ui.row().classes('w-full gap-3'):
-            self._build_recent_table_panel()
-            self._build_tips_panel()
-
-    def _build_recent_table_panel(self) -> None:
-        with ui.card().classes('flex-1').style(_card_style('padding: 16px 18px;')):
-            with ui.row().classes('items-center gap-2'):
-                ui.icon('history', size='14px').classes('text-white').style(
-                    f'background: {COLORS["primary"]}; border-radius: 6px; '
-                    f'width: 28px; height: 28px; display: flex; align-items: center; '
-                    f'justify-content: center;'
-                )
-                ui.label('Últimas Partidas').classes('text-sm font-bold').style(f'color: {COLORS["text"]}')
-
-            self.table_container = ui.column().classes('w-full')
-
-    def _build_tips_panel(self) -> None:
-        with ui.card().classes('w-72').style(_card_style('padding: 16px 18px;')):
-            with ui.row().classes('items-center gap-2'):
-                ui.icon('lightbulb', size='14px').classes('text-white').style(
-                    f'background: {COLORS["warning"]}; border-radius: 6px; '
-                    f'width: 28px; height: 28px; display: flex; align-items: center; '
-                    f'justify-content: center;'
-                )
-                ui.label('Dicas de Melhoria').classes('text-sm font-bold').style(f'color: {COLORS["text"]}')
-
-            self.tips_container = ui.column().classes('w-full gap-2')
-
-    # ── ANALYSES PAGE ──────────────────────────────────────────────────────
-
-    def _show_analyses(self) -> None:
-        self.main_area.clear()
-        with self.main_area:
-            # Header
-            with ui.row().classes('items-center gap-3'):
-                ui.icon('analytics', size='18px').classes('text-white').style(
-                    f'background: {COLORS["accent"]}; border-radius: 8px; '
-                    f'width: 36px; height: 36px; display: flex; align-items: center; '
-                    f'justify-content: center;'
+    def _build_player_card(self) -> None:
+        with ui.card().classes('flex-1 fade-in').style(glass('padding: 20px; border-radius: 24px;')):
+            with ui.row().classes('items-center gap-4'):
+                ui.avatar(
+                    icon='sports_esports',
+                    color=C['primary_container'],
+                    text_color='white',
+                    size='56px'
+                ).style(
+                    f'border-radius: 16px; border: 1px solid rgba(173,198,255,0.2);'
                 )
                 with ui.column().classes('gap-0'):
-                    ui.label('Análises Detalhadas').classes('text-xl font-bold').style(f'color: {COLORS["text"]}')
-                    ui.label('Análise completa de um replay').classes('text-xs').style(f'color: {COLORS["text_muted"]}')
+                    ui.label(self.config.get('player_name', 'Player')).style(
+                        f'font-size: 18px; font-weight: 700; color: {C["text"]}; line-height: 1.2;'
+                    )
+                    with ui.row().classes('items-center gap-2'):
+                        ui.label('DIAMOND III').style(label_caps(f'color: {C["primary"]};'))
+                        ui.label('•').style(f'color: {C["text_dim"]}; font-size: 10px;')
+                        ui.label('MMR 1042').style(
+                            f'font-size: 12px; font-family: "JetBrains Mono"; color: {C["text_var"]};'
+                        )
 
-            ui.space()
+            ui.space().style('height: 16px;')
 
-            # Replay selection
-            with ui.card().classes('w-full').style(_card_style('padding: 10px;')):
+            # Season progress
+            with ui.row().classes('w-full justify-between'):
+                ui.label('SEASON PROGRESS').style(label_caps(f'color: {C["text_var"]}; font-size: 10px;'))
+                ui.label('82%').style(label_caps(f'color: {C["primary"]}; font-size: 10px;'))
+            ui.linear_progress(value=0.82).style(
+                f'height: 6px; border-radius: 3px; background: rgba(255,255,255,0.05);'
+            ).props(f'color="{C["primary_container"]}"')
+
+    def _build_session_card(self) -> None:
+        with ui.card().classes('flex-1 fade-in').style(glass('padding: 20px; animation-delay: 0.05s;')):
+            with ui.column().classes('gap-0'):
+                ui.label("TODAY'S SESSION").style(label_caps(f'color: {C["text_var"]}; font-size: 10px;'))
+                with ui.row().classes('items-baseline gap-2'):
+                    ui.label('05').style(
+                        f'font-size: 40px; font-weight: 900; color: {C["primary"]}; '
+                        f'line-height: 1; text-shadow: 0 0 10px rgba(173,198,255,0.5);'
+                    )
+                    ui.label('GAMES').style(f'color: {C["text_dim"]}; font-size: 14px;')
+
+            ui.space().style('height: 12px;')
+
+            with ui.row().classes('w-full items-center justify-between'):
                 with ui.row().classes('items-center gap-2'):
-                    ui.icon('folder_open', size='18px').style(f'color: {COLORS["text_secondary"]}')
+                    ui.label('3V').style(f'font-size: 16px; font-weight: 700; color: {C["tertiary"]};')
+                    ui.label('/').style(f'color: {C["text_dim"]};')
+                    ui.label('2D').style(f'font-size: 16px; font-weight: 700; color: {C["error"]};')
+
+                with ui.row().classes('items-center gap-1').style(
+                    f'background: rgba(76,215,246,0.1); padding: 3px 10px; border-radius: 6px;'
+                ):
+                    ui.icon('bolt', size='14px').style(f'color: {C["tertiary"]};')
+                    ui.label('STREAK W2').style(
+                        f'font-size: 10px; font-weight: 700; color: {C["tertiary"]};'
+                    )
+
+    def _build_winrate_card(self) -> None:
+        with ui.card().classes('flex-1 fade-in').style(glass('padding: 20px; animation-delay: 0.1s;')):
+            with ui.row().classes('w-full items-center justify-between'):
+                with ui.column().classes('gap-0'):
+                    ui.label('WIN RATE').style(label_caps(f'color: {C["text_var"]}; font-size: 10px;'))
+                    ui.label('65%').style(
+                        f'font-size: 32px; font-weight: 900; color: {C["tertiary"]}; line-height: 1.2;'
+                    )
+                    ui.label('Últimas 10 partidas').style(
+                        f'font-size: 10px; color: {C["text_dim"]}; font-style: italic; margin-top: 4px;'
+                    )
+
+                # SVG ring chart
+                ui.html(self._svg_ring(65, 80, C['tertiary']))
+
+    def _build_proximity_card(self) -> None:
+        with ui.card().classes('flex-1 fade-in').style(
+            glass(f'padding: 20px; border-color: rgba(173,198,255,0.2); animation-delay: 0.15s;')
+        ):
+            with ui.row().classes('w-full items-center justify-between'):
+                with ui.column().classes('gap-0'):
+                    ui.label('PROXIMITY SCORE').style(
+                        label_caps(f'color: {C["text_var"]}; font-size: 10px;')
+                    )
+                    ui.label('72%').style(
+                        f'font-size: 32px; font-weight: 900; color: {C["primary"]}; line-height: 1.2;'
+                    )
+
+                ui.html(
+                    f'<div style="{icon_circle(40, "rgba(173,198,255,0.2)")}">'
+                    f'<span class="material-symbols-outlined" style="color:{C["primary"]};">psychology</span>'
+                    f'</div>'
+                )
+
+            ui.space().style('height: 8px;')
+            with ui.row().classes('w-full justify-between'):
+                ui.label('VS ZEN').style(f'font-size: 10px; color: {C["text_dim"]};')
+                ui.label('+2% week').style(stat_mono(f'font-size: 10px; color: {C["primary"]};'))
+
+            ui.linear_progress(value=0.72).style(
+                f'height: 4px; border-radius: 2px; background: rgba(255,255,255,0.05); margin-top: 8px;'
+            ).props(f'color="{C["primary_container"]}"')
+
+    # ── PRO COMPARISON (DASHBOARD CENTER) ───────────────────────────────────
+
+    def _build_pro_comparison_section(self) -> None:
+        with ui.row().classes('w-full gap-4'):
+            self._build_radar_comparison()
+            self._build_ai_coach_panel()
+
+    def _build_radar_comparison(self) -> None:
+        with ui.card().classes('flex-1 radar-bg fade-in').style(
+            glass('padding: 32px; overflow: hidden; position: relative; animation-delay: 0.2s;')
+        ):
+            # Background glow
+            ui.html(
+                '<div style="position:absolute; top:-80px; right:-80px; width:256px; height:256px; '
+                f'background: rgba(173,198,255,0.05); border-radius: 50%; filter: blur(80px); pointer-events:none;"></div>'
+            )
+
+            with ui.row().classes('w-full gap-10'):
+                # Left: circular score
+                with ui.column().classes('items-center justify-center flex-1'):
+                    ui.html(self._svg_large_ring(72, 128, C['primary']))
+                    ui.space().style('height: 24px;')
+
+                    with ui.row().classes('items-center gap-6'):
+                        with ui.row().classes('items-center gap-2'):
+                            ui.html(f'<div style="width:12px; height:12px; border-radius:50%; background:{C["primary"]}; box-shadow: 0 0 8px rgba(173,198,255,1);"></div>')
+                            ui.label('YOU').style(f'font-size: 11px; font-weight: 700;')
+                        with ui.row().classes('items-center gap-2'):
+                            ui.html(f'<div style="width:12px; height:12px; border-radius:50%; border: 2px solid {C["tertiary"]};"></div>')
+                            ui.label('ZEN').style(f'font-size: 11px; font-weight: 700; color: {C["text_var"]};')
+
+                # Right: metrics bars
+                with ui.column().classes('flex-1 justify-center gap-6'):
+                    ui.label('Professional Comparison').style(
+                        f'font-size: 22px; font-weight: 700; color: {C["text"]};'
+                    )
+                    ui.label('Sua gameplay em comparação direta com o melhor jogador do mundo.').style(
+                        f'font-size: 14px; color: {C["text_var"]}; line-height: 1.5;'
+                    )
+
+                    ui.space().style('height: 8px;')
+
+                    metrics = [
+                        ('Boost Management', 84, 92),
+                        ('Positioning', 61, 98),
+                        ('Defense', 91, 89),
+                        ('Speed', 78, 95),
+                        ('Shooting', 65, 88),
+                    ]
+                    for label, you, pro in metrics:
+                        self._build_metric_bar(label, you, pro)
+
+                    ui.space().style('height: 12px;')
+
+                    ui.button('See detailed analysis →').style(
+                        f'background: {C["primary_container"]}; color: {C["on_primary"]}; '
+                        f'border-radius: 16px; padding: 12px 24px; font-weight: 700; '
+                        f'width: 100%; text-transform: none; box-shadow: 0 0 25px rgba(173,198,255,0.2);'
+                    ).on_click(lambda: self._on_nav(3))
+
+    def _build_metric_bar(self, label: str, you: int, pro: int) -> None:
+        with ui.column().classes('w-full gap-1'):
+            with ui.row().classes('w-full justify-between'):
+                ui.label(label).style(f'font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em;')
+                ui.label(f'{you} / {pro}').style(
+                    stat_mono(f'font-size: 12px; color: {C["primary"]};')
+                )
+            with ui.row().classes('w-full').style('height: 6px;'):
+                ui.html(
+                    f'<div style="width: 100%; height: 6px; background: rgba(255,255,255,0.05); '
+                    f'border-radius: 3px; overflow: hidden; display: flex;">'
+                    f'<div style="width: {you}%; height: 100%; background: {C["primary"]}; border-radius: 3px;"></div>'
+                    f'</div>'
+                )
+
+    # ── AI COACH PANEL ──────────────────────────────────────────────────────
+
+    def _build_ai_coach_panel(self) -> None:
+        with ui.card().classes('w-96 fade-in').style(
+            glass('padding: 0; overflow: hidden; display: flex; flex-direction: column; height: 500px; animation-delay: 0.25s;')
+        ):
+            # Header
+            with ui.row().classes('w-full items-center justify-between').style(
+                f'padding: 16px 20px; border-bottom: 1px solid rgba(255,255,255,0.05); background: rgba(255,255,255,0.02);'
+            ):
+                with ui.row().classes('items-center gap-3'):
+                    ui.html(
+                        f'<div style="width:40px; height:40px; border-radius:12px; '
+                        f'background: linear-gradient(135deg, {C["tertiary_cont"]}, {C["secondary_container"]}); '
+                        f'display:flex; align-items:center; justify-content:center;" class="animate-pulse-slow">'
+                        f'<span class="material-symbols-outlined" style="color:white; font-variation-settings:\'FILL\' 1;">auto_awesome</span>'
+                        f'</div>'
+                    )
+                    with ui.column().classes('gap-0'):
+                        ui.label('AI Coach').style(f'font-size: 14px; font-weight: 700; color: {C["text"]};')
+                        ui.label('POWERED BY NVIDIA NIM').style(label_caps(f'color: {C["text_var"]}; opacity: 0.6; font-size: 9px;'))
+
+                ui.html(
+                    f'<div style="width:8px; height:8px; border-radius:50%; background:{C["tertiary"]}; '
+                    f'animation: ping-glow 2s infinite;" class="ping-glow"></div>'
+                )
+
+            # Messages
+            self.chat_messages = ui.column().classes('flex-1 overflow-auto custom-scroll').style('padding: 16px;')
+            with self.chat_messages:
+                self._chat_msg('ai', 'Welcome back, <b>cash</b>. I\'ve analyzed your last 5 matches. Ready for the breakdown?')
+
+            # Input
+            with ui.row().classes('w-full items-center gap-2').style(
+                f'padding: 16px; border-top: 1px solid rgba(255,255,255,0.05);'
+            ):
+                self.chat_input = ui.input(placeholder='Pergunte ao coach...').classes('flex-1').style(
+                    f'background: {C["surface_cont"]}; border: 1px solid rgba(255,255,255,0.1); '
+                    f'border-radius: 16px; padding: 12px 16px;'
+                ).props('borderless dense')
+                ui.button(icon='send').style(
+                    f'color: {C["primary"]}; background: transparent; border: none;'
+                ).on_click(self._send_chat)
+
+    def _chat_msg(self, sender: str, message: str) -> None:
+        is_ai = sender == 'ai'
+        with ui.card().classes('w-full').style(
+            f'background: {"rgba(50,53,60,0.8)" if is_ai else "rgba(173,198,255,0.15)"}; '
+            f'border: 1px solid {"rgba(255,255,255,0.05)" if is_ai else "rgba(173,198,255,0.2)"}; '
+            f'border-radius: {"16px 16px 16px 4px" if is_ai else "16px 16px 4px 16px"}; '
+            f'padding: 12px 16px; margin-bottom: 8px; '
+            f'{"max-width: 85%;" if is_ai else "max-width: 85%; margin-left: auto;"}'
+        ):
+            ui.html(f'<p style="font-size: 14px; color: {C["text"]}; margin: 0; line-height: 1.5;">{message}</p>')
+
+    def _send_chat(self) -> None:
+        msg = self.chat_input.value
+        if not msg:
+            return
+        self._chat_msg('user', msg)
+        self.chat_input.value = ''
+
+        if self.ai_coach:
+            context = self._get_chat_context()
+            response = self.ai_coach.chat(msg, context)
+            self._chat_msg('ai', response or 'Erro ao processar mensagem.')
+        else:
+            self._chat_msg('ai', 'AI Coach não disponível. Configure <b>nvidia_api_key</b> no config.json.')
+
+    def _get_chat_context(self) -> str:
+        try:
+            matches = self.db.get_matches(limit=5)
+            if not matches:
+                return 'Nenhuma partida registrada.'
+            latest = matches[0]
+            return (
+                f"Última partida: {latest.get('result', 'N/A')}\n"
+                f"Boost médio: {latest.get('boost_avg', 0):.1f}\n"
+                f"Velocidade: {latest.get('avg_speed', 0):.0f} u/s\n"
+                f"Gols: {latest.get('goals', 0)}"
+            )
+        except Exception:
+            return ''
+
+    # ── PERFORMANCE TIMELINE ────────────────────────────────────────────────
+
+    def _build_performance_timeline(self) -> None:
+        with ui.card().classes('w-full fade-in').style(glass('padding: 20px; animation-delay: 0.3s;')):
+            with ui.row().classes('w-full items-center justify-between').style('margin-bottom: 24px;'):
+                with ui.column().classes('gap-0'):
+                    ui.label('Performance Timeline').style(
+                        f'font-size: 18px; font-weight: 700; color: {C["text"]};'
+                    )
+                    ui.label('Sua evolução histórica consolidada por métricas chave.').style(
+                        f'font-size: 12px; color: {C["text_var"]}; margin-top: 4px;'
+                    )
+
+                with ui.row().classes('items-center').style(
+                    f'background: {C["surface_low"]}; padding: 4px; border-radius: 12px; '
+                    f'border: 1px solid rgba(255,255,255,0.05);'
+                ):
+                    for label in ['7D', '30D', 'Season']:
+                        is_active = label == '7D'
+                        ui.button(label).style(
+                            f'padding: 6px 16px; border-radius: 8px; font-size: 12px; font-weight: 700; '
+                            f'{"background: " + C["surface_highest"] + "; color: " + C["primary"] + ";" if is_active else "background: transparent; color: " + C["text_var"] + ";"}'
+                            f'border: none; text-transform: none;'
+                        ).props('flat')
+
+            self.timeline_container = ui.element('div').classes('w-full').style('height: 260px;')
+
+    def _update_timeline(self, matches: list) -> None:
+        self.timeline_container.clear()
+        if not matches or len(matches) < 2:
+            with self.timeline_container:
+                with ui.column().classes('w-full h-full items-center justify-center'):
+                    ui.icon('show_chart', size='48px').style(f'color: {C["text_dim"]};')
+                    ui.label('Jogue mais partidas para ver a timeline').style(
+                        f'font-size: 13px; color: {C["text_dim"]};'
+                    )
+            return
+
+        sorted_m = sorted(matches, key=lambda x: x.get('date', ''), reverse=False)
+        labels = []
+        winrate_data = []
+        similarity_data = []
+
+        for m in sorted_m:
+            try:
+                dt = datetime.strptime(str(m.get('date', ''))[:10], '%Y-%m-%d')
+                labels.append(dt.strftime('%d/%m'))
+            except (ValueError, TypeError):
+                labels.append(str(len(labels) + 1))
+            winrate_data.append(m.get('proximity_score', 50) or 50)
+            similarity_data.append(m.get('proximity_score', 50) or 50)
+
+        option = {
+            'backgroundColor': 'transparent',
+            'grid': {'left': '5%', 'right': '3%', 'top': '8%', 'bottom': '15%'},
+            'tooltip': {
+                'trigger': 'axis',
+                'backgroundColor': C['surface_cont'],
+                'borderColor': C['outline_var'],
+                'textStyle': {'color': C['text'], 'fontSize': 11}
+            },
+            'legend': {
+                'data': ['Win Rate', 'Pro Similarity'],
+                'textStyle': {'color': C['text_dim'], 'fontSize': 10},
+                'top': 0
+            },
+            'xAxis': {
+                'type': 'category', 'data': labels,
+                'axisLine': {'lineStyle': {'color': C['outline_var']}},
+                'axisLabel': {'color': C['text_dim'], 'fontSize': 10},
+                'axisTick': {'show': False}
+            },
+            'yAxis': {
+                'type': 'value',
+                'axisLine': {'show': False},
+                'splitLine': {'lineStyle': {'color': C['outline_var'], 'type': 'dashed'}},
+                'axisLabel': {'color': C['text_dim'], 'fontSize': 10}
+            },
+            'series': [
+                {
+                    'name': 'Win Rate',
+                    'type': 'line',
+                    'data': winrate_data,
+                    'smooth': True,
+                    'symbol': 'circle', 'symbolSize': 6,
+                    'lineStyle': {'color': C['primary'], 'width': 3},
+                    'itemStyle': {'color': C['primary'], 'borderWidth': 2, 'borderColor': '#fff'},
+                    'areaStyle': {
+                        'color': {
+                            'type': 'linear', 'x': 0, 'y': 0, 'x2': 0, 'y2': 1,
+                            'colorStops': [
+                                {'offset': 0, 'color': 'rgba(173,198,255,0.3)'},
+                                {'offset': 1, 'color': 'rgba(173,198,255,0.01)'}
+                            ]
+                        }
+                    }
+                },
+                {
+                    'name': 'Pro Similarity',
+                    'type': 'line',
+                    'data': similarity_data,
+                    'smooth': True,
+                    'symbol': 'circle', 'symbolSize': 5,
+                    'lineStyle': {'color': C['tertiary'], 'width': 2, 'type': 'dashed'},
+                    'itemStyle': {'color': C['tertiary']}
+                }
+            ]
+        }
+
+        with self.timeline_container:
+            ui.echart(option).style('width: 100%; height: 240px;')
+
+            with ui.row().classes('w-full items-center gap-6').style('margin-top: 16px; border-top: 1px solid rgba(255,255,255,0.05); padding-top: 16px;'):
+                for color, label in [(C['primary'], 'Win Rate'), (C['tertiary'], 'MMR Progress'), (C['secondary'], 'Pro Similarity')]:
+                    with ui.row().classes('items-center gap-2'):
+                        ui.html(f'<div style="width:10px; height:10px; border-radius:50%; background:{color};"></div>')
+                        ui.label(label).style(label_caps(f'font-size: 10px; color: {C["text_var"]};'))
+
+    # ── MATCH HISTORY PREVIEW ───────────────────────────────────────────────
+
+    def _build_match_history_preview(self) -> None:
+        matches = self.db.get_matches(limit=5)
+
+        with ui.card().classes('w-full fade-in').style(glass('padding: 20px; animation-delay: 0.35s;')):
+            with ui.row().classes('w-full items-center justify-between').style('margin-bottom: 20px;'):
+                ui.label('Recent Matches').style(
+                    f'font-size: 18px; font-weight: 700; color: {C["text"]};'
+                )
+                ui.button('View All →').style(
+                    f'color: {C["primary"]}; background: transparent; border: none; '
+                    f'font-size: 13px; font-weight: 600; text-transform: none;'
+                ).on_click(lambda: self._on_nav(2))
+
+            if not matches:
+                with ui.column().classes('w-full items-center justify-center').style('padding: 40px 0;'):
+                    ui.icon('inbox', size='48px').style(f'color: {C["text_dim"]};')
+                    ui.label('Nenhuma partida registrada').style(f'color: {C["text_dim"]}; margin-top: 8px;')
+                return
+
+            for match in matches[:4]:
+                self._build_match_card(match)
+
+    def _build_match_card(self, match: dict) -> None:
+        result = match.get('result', '')
+        is_win = result == 'win'
+        border_class = 'win-border' if is_win else 'loss-border'
+        result_color = C['success'] if is_win else C['error']
+        result_letter = 'W' if is_win else 'L'
+
+        with ui.card().classes(f'w-full {border_class}').style(
+            glass('padding: 16px 20px; border-radius: 16px; margin-bottom: 12px;')
+        ):
+            with ui.row().classes('w-full items-center gap-6'):
+                # Result circle
+                ui.html(
+                    f'<div style="width:48px; height:48px; border-radius:50%; '
+                    f'border: 2px solid {result_color}40; background: {result_color}15; '
+                    f'display:flex; align-items:center; justify-content:center; '
+                    f'font-size: 18px; font-weight:900; color: {result_color}; flex-shrink:0;">'
+                    f'{result_letter}</div>'
+                )
+
+                # Identity
+                with ui.column().classes('flex-1 gap-0'):
+                    ui.label(match.get('playlist', '2v2 Ranked')).style(
+                        f'font-size: 15px; font-weight: 700; color: {C["text"]};'
+                    )
+                    with ui.row().classes('items-center gap-2'):
+                        ui.icon('groups', size='14px').style(f'color: {C["text_dim"]};')
+                        ui.label(match.get('playlist', 'N/A')).style(
+                            f'font-size: 12px; color: {C["text_var"]};'
+                        )
+
+                # Score
+                goals = match.get('goals', 0)
+                assists = match.get('assists', 0)
+                saves = match.get('saves', 0)
+                score = match.get('score', 0)
+
+                with ui.column().classes('items-center gap-1'):
+                    ui.label(str(score)).style(
+                        stat_mono(f'font-size: 18px; font-weight: 700; color: {C["primary"]};')
+                    )
+                    ui.label('SCORE').style(label_caps(f'font-size: 9px; color: {C["text_dim"]};'))
+
+                # GAS
+                with ui.row().classes('items-center gap-3'):
+                    for val, lbl in [(goals, 'G'), (assists, 'A'), (saves, 'S')]:
+                        with ui.column().classes('items-center gap-0'):
+                            ui.label(str(val)).style(stat_mono(f'font-size: 16px; font-weight: 700; color: {C["text"]};'))
+                            ui.label(lbl).style(label_caps(f'font-size: 9px; color: {C["text_dim"]};'))
+
+                # Proximity
+                prox = match.get('proximity_score', 0) or 0
+                ui.html(
+                    f'<div style="padding: 6px 12px; border-radius: 20px; '
+                    f'background: rgba(76,215,246,0.1); border: 1px solid rgba(76,215,246,0.3); '
+                    f'display: flex; flex-direction: column; align-items: center;">'
+                    f'<span style="font-size: 9px; color: {C["tertiary"]}; font-weight: 700; text-transform: uppercase;">PROX</span>'
+                    f'<span style="font-size: 14px; font-weight: 700; color: {C["tertiary"]};">{prox:.0f}%</span>'
+                    f'</div>'
+                )
+
+    # ════════════════════════════════════════════════════════════════════════
+    # REPLAY ANALYSIS PAGE
+    # ════════════════════════════════════════════════════════════════════════
+
+    def _show_replay_analysis(self) -> None:
+        self.main_area.clear()
+        with self.main_area:
+            with ui.row().classes('w-full items-center justify-between').style('margin-bottom: 24px;'):
+                with ui.column().classes('gap-0'):
+                    ui.label('Replay Analysis').style(
+                        f'font-size: 24px; font-weight: 700; color: {C["text"]};'
+                    )
+                    ui.label('Análise completa de um replay com coaching IA').style(
+                        f'font-size: 14px; color: {C["text_var"]};'
+                    )
+
+                with ui.row().classes('items-center gap-3'):
                     self.replay_select = ui.select(
                         options={}, value=None, label='Selecionar replay',
                         on_change=self._on_replay_select
-                    ).classes('flex-1').style(
-                        f'background: {COLORS["surface"]};'
-                    ).props(f'dense options-dense color="{COLORS["primary"]}"')
-                    ui.button(icon='refresh', on_click=self._load_replay_list).classes('text-white').style(
-                        f'background: {COLORS["primary"]}; border-radius: 6px; '
-                        f'width: 32px; height: 32px; min-width: 32px;'
-                    )
+                    ).classes('w-80').props(f'outlined dense')
+                    ui.button(icon='refresh').style(
+                        f'background: {C["surface_high"]}; border: 1px solid rgba(255,255,255,0.1); '
+                        f'border-radius: 8px; padding: 10px;'
+                    ).on_click(self._load_replay_list)
 
-            ui.space()
+            with ui.row().classes('w-full gap-6'):
+                self.analysis_container = ui.column().classes('flex-1')
+                with self.analysis_container:
+                    with ui.column().classes('w-full items-center justify-center').style('padding: 80px 0;'):
+                        ui.icon('analytics', size='64px').style(f'color: {C["text_dim"]}; opacity: 0.3;')
+                        ui.label('Selecione um replay para analisar').style(
+                            f'font-size: 14px; color: {C["text_dim"]}; margin-top: 12px;'
+                        )
 
-            # Results area
-            self.analysis_container = ui.column().classes('w-full flex-1 items-center justify-center')
-            with self.analysis_container:
-                ui.icon('analytics', size='48px').style(f'color: {COLORS["text_muted"]}')
-                ui.label('Selecione um replay para analisar').classes('text-base').style(f'color: {COLORS["text_muted"]}')
+                self._build_analysis_chat()
 
         self._load_replay_list()
 
+    def _build_analysis_chat(self) -> None:
+        with ui.card().classes('w-96').style(
+            glass('padding: 0; overflow: hidden; display: flex; flex-direction: column; height: 560px;')
+        ):
+            with ui.row().classes('w-full items-center justify-between').style(
+                f'padding: 16px 20px; border-bottom: 1px solid rgba(255,255,255,0.05); background: rgba(255,255,255,0.02);'
+            ):
+                with ui.row().classes('items-center gap-3'):
+                    ui.html(
+                        f'<div style="width:8px; height:8px; border-radius:50%; background:{C["tertiary"]};"></div>'
+                    )
+                    ui.label('AI COACH').style(f'font-size: 14px; font-weight: 700;')
+
+            self.analysis_chat = ui.column().classes('flex-1 overflow-auto custom-scroll').style('padding: 16px;')
+            with self.analysis_chat:
+                self._chat_msg('ai', 'Selecione um replay para receber uma análise detalhada da IA.')
+
+            with ui.row().classes('w-full items-center gap-2').style(
+                f'padding: 16px; border-top: 1px solid rgba(255,255,255,0.05);'
+            ):
+                self.analysis_input = ui.input(placeholder='Pergunte sobre sua gameplay...').classes('flex-1').props('borderless dense')
+                ui.button(icon='send').style(f'color: {C["primary"]};').on_click(self._send_analysis_chat)
+
+    def _send_analysis_chat(self) -> None:
+        msg = self.analysis_input.value
+        if not msg:
+            return
+        self.analysis_input.value = ''
+
     def _load_replay_list(self) -> None:
-        replay_folder = os.path.join(
-            os.path.expanduser("~"),
-            "Documents", "My Games", "Rocket League", "TAGame", "Demos"
-        )
-
+        replay_folder = self.config.get('replay_folder', os.path.join(
+            os.path.expanduser('~'), 'Documents', 'My Games', 'Rocket League', 'TAGame', 'Demos'
+        ))
         if not os.path.exists(replay_folder):
-            self.replay_select.options = {'none': 'Pasta de replays não encontrada'}
-            self.replay_select.update()
             return
 
-        replay_files = [f for f in os.listdir(replay_folder) if f.endswith(".replay")]
-        replay_files.sort(key=lambda x: os.path.getmtime(os.path.join(replay_folder, x)), reverse=True)
-
-        if not replay_files:
-            self.replay_select.options = {'none': 'Nenhum replay encontrado'}
-            self.replay_select.update()
-            return
+        replay_files = sorted(
+            [f for f in os.listdir(replay_folder) if f.endswith('.replay')],
+            key=lambda x: os.path.getmtime(os.path.join(replay_folder, x)),
+            reverse=True
+        )
 
         options = {}
         for f in replay_files[:20]:
             mtime = os.path.getmtime(os.path.join(replay_folder, f))
-            date_str = datetime.fromtimestamp(mtime).strftime("%d/%m %H:%M")
-            display_name = f"{date_str} - {f[:30]}..."
-            options[f] = display_name
+            date_str = datetime.fromtimestamp(mtime).strftime('%d/%m %H:%M')
+            options[f] = f'{date_str} - {f[:30]}'
 
-        self.replay_select.options = options
-        first_key = list(options.keys())[0]
-        self.replay_select.value = first_key
-        self.replay_select.update()
+        if options:
+            self.replay_select.options = options
+            self.replay_select.value = list(options.keys())[0]
+            self.replay_select.update()
 
     def _on_replay_select(self, e) -> None:
-        if not e.value or e.value == "none":
+        if not e.value:
             return
-        replay_folder = os.path.join(
-            os.path.expanduser("~"),
-            "Documents", "My Games", "Rocket League", "TAGame", "Demos"
-        )
+        replay_folder = self.config.get('replay_folder', os.path.join(
+            os.path.expanduser('~'), 'Documents', 'My Games', 'Rocket League', 'TAGame', 'Demos'
+        ))
         replay_path = os.path.join(replay_folder, e.value)
         self._analyze_replay(replay_path)
 
@@ -430,49 +955,46 @@ class Dashboard:
         from bot.local_analyzer import LocalReplayAnalyzer, HAS_SUBTR
 
         self.analysis_container.clear()
-
         if not HAS_SUBTR:
             with self.analysis_container:
-                ui.icon('error', size='48px').style(f'color: {COLORS["error"]}')
-                ui.label('subtr-actor não instalado').classes('text-base').style(f'color: {COLORS["error"]}')
-                ui.label('Execute: uv pip install subtr-actor-py').classes('text-xs').style(f'color: {COLORS["text_muted"]}')
+                with ui.column().classes('w-full items-center justify-center').style('padding: 60px 0;'):
+                    ui.icon('error', size='48px').style(f'color: {C["error"]};')
+                    ui.label('subtr-actor não instalado').style(f'font-size: 16px; color: {C["error"]}; margin-top: 8px;')
+                    ui.label('Execute: pip install subtr-actor-py').style(f'font-size: 12px; color: {C["text_dim"]};')
             return
 
         with self.analysis_container:
-            ui.spinner(size='40px').style(f'color: {COLORS["primary"]}')
-            ui.label('Analisando replay...').classes('text-sm').style(f'color: {COLORS["text_secondary"]}')
+            ui.spinner(size='40px').style(f'color: {C["primary"]};')
+            ui.label('Analisando replay...').style(f'color: {C["text_var"]}; margin-top: 8px;')
 
         try:
             analyzer = LocalReplayAnalyzer(self.config.get('player_name', ''))
             result = analyzer.analyze_replay(replay_path)
-
             self.analysis_container.clear()
 
             if result:
                 self._show_analysis_results(result)
+                if self.ai_coach:
+                    self._add_ai_analysis_card(result)
             else:
                 with self.analysis_container:
-                    ui.icon('warning', size='48px').style(f'color: {COLORS["warning"]}')
-                    ui.label('Não foi possível analisar o replay').classes('text-base').style(f'color: {COLORS["warning"]}')
-                    ui.label('Verifique se o jogador está no replay').classes('text-xs').style(f'color: {COLORS["text_muted"]}')
+                    ui.icon('warning', size='48px').style(f'color: {C["warning"]};')
+                    ui.label('Replay não analisado').style(f'color: {C["warning"]}; margin-top: 8px;')
         except Exception as ex:
             self.analysis_container.clear()
             with self.analysis_container:
-                ui.icon('error', size='48px').style(f'color: {COLORS["error"]}')
-                ui.label('Erro na análise').classes('text-base').style(f'color: {COLORS["error"]}')
-                ui.label(str(ex)).classes('text-xs').style(f'color: {COLORS["text_muted"]}')
+                ui.icon('error', size='48px').style(f'color: {C["error"]};')
+                ui.label(str(ex)).style(f'color: {C["error"]}; margin-top: 8px; font-size: 12px;')
 
     def _show_analysis_results(self, result: Dict[str, Any]) -> None:
-        """Show analysis results in Trophi.ai style layout."""
-        # Extract data
         goals = result.get('goals', 0)
         assists = result.get('assists', 0)
         saves = result.get('saves', 0)
         shots = result.get('shots', 0)
-        game_mode = result.get('game_mode', '?')
         map_name = result.get('map_name', '?')
-        team_zero_score = result.get('team_zero_score', 0)
-        team_one_score = result.get('team_one_score', 0)
+        game_mode = result.get('game_mode', '?')
+        team_zero = result.get('team_zero_score', 0)
+        team_one = result.get('team_one_score', 0)
         duration = result.get('duration_seconds', 0)
         player_name = result.get('player_name', self.config.get('player_name', 'You'))
         avg_dist = result.get('avg_distance_to_ball', 0)
@@ -482,12 +1004,11 @@ class Dashboard:
         boost_used = result.get('boost_used', 0)
         demos = result.get('demos_inflicted', 0)
 
+        won = team_zero > team_one
+        score_str = f'{team_zero} - {team_one}'
         dur_min = int(duration // 60)
         dur_sec = int(duration % 60)
-        won = team_zero_score > team_one_score
-        score_str = f"{team_zero_score} - {team_one_score}"
 
-        # Skill scores (0-100)
         movement_score = max(0, min(100, int(100 - (avg_dist - 500) / 15))) if avg_dist > 0 else 50
         aerial_score = max(0, min(100, int(boost_collected / 50))) if boost_collected > 0 else 30
         positioning_score = max(0, min(100, 100 - abs(time_off - 50) * 2))
@@ -495,365 +1016,214 @@ class Dashboard:
         boost_score = max(0, min(100, int(boost_eff * 1.1)))
         shooting_score = int((goals / shots * 100)) if shots > 0 else 0
 
-        # Get pro comparison
         comparison = self._get_analysis_comparison(result)
         overall_score = comparison.get('score', 0) if comparison else 0
-
         tips = self._generate_analysis_tips(result)
 
         with self.analysis_container:
-            # ── HEADER ──
-            with ui.row().classes('w-full items-center justify-between fade-in').style(
-                f'background: {COLORS["card"]}; border: 1px solid {COLORS["border_light"]}; '
-                f'border-radius: 12px; padding: 16px 20px; animation-delay: 0s;'
-            ):
-                with ui.row().classes('items-center gap-4'):
-                    result_color = COLORS['success'] if won else COLORS['error']
-                    result_text = "WIN" if won else "LOSS"
-                    ui.label(result_text).classes('text-xs font-bold').style(
-                        f'background: {result_color}; color: white; border-radius: 6px; '
-                        f'padding: 6px 14px; letter-spacing: 1px;'
-                    )
-                    with ui.column().classes('gap-0'):
-                        ui.label(player_name).classes('text-lg font-bold').style(f'color: {COLORS["text"]}')
-                        with ui.row().classes('items-center gap-2'):
-                            ui.label(score_str).classes('text-sm font-semibold').style(f'color: {COLORS["text_secondary"]}')
-                            ui.label('•').style(f'color: {COLORS["text_muted"]}')
-                            ui.label(game_mode).classes('text-xs').style(f'color: {COLORS["text_secondary"]}')
-                            ui.label('•').style(f'color: {COLORS["text_muted"]}')
-                            ui.label(map_name).classes('text-xs').style(f'color: {COLORS["text_secondary"]}')
-                with ui.row().classes('items-center gap-3'):
-                    ui.label(f'{dur_min}:{dur_sec:02d}').classes('text-sm font-semibold').style(f'color: {COLORS["text_muted"]}')
-                    score_color = COLORS['success'] if overall_score >= 70 else COLORS['warning'] if overall_score >= 50 else COLORS['error']
-                    ui.label(f'{overall_score:.0f}/100').classes('text-sm font-bold').style(
-                        f'background: {score_color}20; color: {score_color}; border-radius: 6px; padding: 4px 10px;'
-                    )
-
-            ui.space()
-
-            # ── TWO-COLUMN LAYOUT ──
-            with ui.row().classes('w-full gap-4'):
-                # LEFT COLUMN
-                with ui.column().classes('flex-1 gap-4'):
-                    self._build_skill_gauges(movement_score, aerial_score, positioning_score, boost_score, shooting_score)
-                    self._build_stat_categories(result)
-
-                    # Heatmap
-                    positions = result.get('positions_sample', [])
-                    if positions and len(positions) >= 3:
-                        self._build_heatmap(positions)
-
-                # RIGHT COLUMN
-                self._build_overview_report(overall_score, tips, result)
-
-    def _make_gauge_option(self, value: int, label: str, color: str) -> dict:
-        """Create ECharts gauge option for skill scores."""
-        return {
-            'backgroundColor': 'transparent',
-            'series': [{
-                'type': 'gauge',
-                'startAngle': 220,
-                'endAngle': -40,
-                'min': 0,
-                'max': 100,
-                'progress': {'show': True, 'width': 14},
-                'axisLine': {'lineStyle': {'width': 14, 'color': [[1, '#31344b']]}},
-                'axisTick': {'show': False},
-                'splitLine': {'show': False},
-                'axisLabel': {'show': False},
-                'pointer': {'show': False},
-                'title': {'show': True, 'offsetCenter': [0, '75%'], 'fontSize': 11, 'color': '#94a3b8'},
-                'detail': {
-                    'valueAnimation': True, 'fontSize': 22, 'fontWeight': 'bold',
-                    'offsetCenter': [0, '35%'], 'color': color
-                },
-                'data': [{'value': value, 'name': label}]
-            }]
-        }
-
-    def _build_skill_gauges(self, movement: int, aerial: int, positioning: int,
-                              boost: int, shooting: int) -> None:
-        """Build circular gauge charts for skill scores."""
-        with ui.card().classes('w-full fade-in').style(_card_style('padding: 20px; animation-delay: 0.1s;')):
-            ui.label('SKILL SCORES').classes('text-xs font-bold tracking-wider').style(
-                f'color: {COLORS["text_secondary"]}'
-            )
-            ui.space()
-
-            gauges = [
-                (movement, 'Movement', COLORS['primary']),
-                (aerial, 'Aerial', COLORS['accent']),
-                (positioning, 'Positioning', COLORS['cyan']),
-                (boost, 'Boost', COLORS['warning']),
-                (shooting, 'Shooting', COLORS['success']),
-            ]
-
-            with ui.row().classes('w-full justify-between'):
-                for value, label, color in gauges:
-                    option = self._make_gauge_option(value, label, color)
-                    ui.echart(option).style('width: 150px; height: 130px;')
-
-    def _get_status(self, stat: str, value: float) -> tuple:
-        """Get status label and color for a stat value vs pro reference."""
-        pro_refs = {
-            'boost_collected': (4500, True),
-            'boost_used': (3500, False),
-            'goals': (1.5, True),
-            'assists': (1.0, True),
-            'shots': (4.0, True),
-            'avg_distance_to_ball': (950, False),
-            'time_near_ball_pct': (35, True),
-            'time_offensive_pct': (48, True),
-        }
-        if stat not in pro_refs:
-            return ('WITHIN TARGET', COLORS['text_muted'])
-        ref, higher_better = pro_refs[stat]
-        if ref == 0:
-            return ('WITHIN TARGET', COLORS['text_muted'])
-        ratio = value / ref
-        if higher_better:
-            if ratio >= 0.9:
-                return ('WITHIN TARGET', COLORS['success'])
-            elif ratio >= 0.6:
-                return ('TOO LOW', COLORS['warning'])
-            else:
-                return ('TOO LOW', COLORS['error'])
-        else:
-            if ratio <= 1.1:
-                return ('WITHIN TARGET', COLORS['success'])
-            elif ratio <= 1.4:
-                return ('TOO HIGH', COLORS['warning'])
-            else:
-                return ('TOO HIGH', COLORS['error'])
-
-    def _build_stat_card_row(self, label: str, value: str, status_text: str, status_color: str) -> None:
-        """Build a single stat row with label, value, and status indicator."""
-        with ui.row().classes('w-full items-center justify-between').style('padding: 6px 0;'):
-            ui.label(label).classes('text-xs').style(f'color: {COLORS["text_secondary"]}')
-            with ui.row().classes('items-center gap-2'):
-                ui.label(value).classes('text-sm font-semibold').style(f'color: {COLORS["text"]}')
-                ui.label(status_text).classes('text-xs font-semibold').style(
-                    f'color: {status_color}; background: {status_color}15; '
-                    f'border-radius: 4px; padding: 2px 6px;'
-                )
-
-    def _build_stat_categories(self, result: Dict[str, Any]) -> None:
-        """Build stat category cards grouped by area."""
-        boost_collected = result.get('boost_collected', 0)
-        boost_used = result.get('boost_used', 0)
-        goals = result.get('goals', 0)
-        assists = result.get('assists', 0)
-        saves = result.get('saves', 0)
-        shots = result.get('shots', 0)
-        avg_dist = result.get('avg_distance_to_ball', 0)
-        time_near = result.get('time_near_ball_pct', 0)
-        time_off = result.get('time_offensive_pct', 0)
-
-        # ── BOOST ──
-        with ui.card().classes('w-full fade-in').style(_card_style('padding: 16px 18px; animation-delay: 0.2s;')):
-            with ui.row().classes('items-center gap-2'):
-                ui.icon('bolt', size='14px').classes('text-white').style(
-                    f'background: {COLORS["warning"]}; border-radius: 6px; '
-                    f'width: 28px; height: 28px; display: flex; align-items: center; '
-                    f'justify-content: center;'
-                )
-                ui.label('BOOST').classes('text-xs font-bold tracking-wider').style(f'color: {COLORS["text"]}')
-
-            ui.separator().style(f'background: {COLORS["border"]}; margin: 8px 0;')
-
-            s_text, s_color = self._get_status('boost_collected', boost_collected)
-            self._build_stat_card_row('Boost Collected', f'{boost_collected:.0f}', s_text, s_color)
-            s_text, s_color = self._get_status('boost_used', boost_used)
-            self._build_stat_card_row('Boost Used', f'{boost_used:.0f}', s_text, s_color)
-            eff = (boost_used / boost_collected * 100) if boost_collected > 0 else 0
-            eff_color = COLORS['success'] if 50 <= eff <= 85 else COLORS['warning']
-            self._build_stat_card_row('Efficiency', f'{eff:.0f}%', 'WITHIN TARGET', eff_color)
-
-        # ── SHOOTING ──
-        shooting_pct = (goals / shots * 100) if shots > 0 else 0
-        with ui.card().classes('w-full fade-in').style(_card_style('padding: 16px 18px; animation-delay: 0.3s;')):
-            with ui.row().classes('items-center gap-2'):
-                ui.icon('sports_soccer', size='14px').classes('text-white').style(
-                    f'background: {COLORS["success"]}; border-radius: 6px; '
-                    f'width: 28px; height: 28px; display: flex; align-items: center; '
-                    f'justify-content: center;'
-                )
-                ui.label('SHOOTING').classes('text-xs font-bold tracking-wider').style(f'color: {COLORS["text"]}')
-
-            ui.separator().style(f'background: {COLORS["border"]}; margin: 8px 0;')
-
-            s_text, s_color = self._get_status('goals', goals)
-            self._build_stat_card_row('Goals', str(goals), s_text, s_color)
-            s_text, s_color = self._get_status('assists', assists)
-            self._build_stat_card_row('Assists', str(assists), s_text, s_color)
-            s_text, s_color = self._get_status('shots', shots)
-            self._build_stat_card_row('Shots', str(shots), s_text, s_color)
-            conv_color = COLORS['success'] if shooting_pct > 25 else COLORS['error']
-            conv_status = 'WITHIN TARGET' if shooting_pct > 25 else 'TOO LOW'
-            self._build_stat_card_row('Conversion', f'{shooting_pct:.0f}%', conv_status, conv_color)
-
-        # ── POSITIONING ──
-        with ui.card().classes('w-full fade-in').style(_card_style('padding: 16px 18px; animation-delay: 0.4s;')):
-            with ui.row().classes('items-center gap-2'):
-                ui.icon('my_location', size='14px').classes('text-white').style(
-                    f'background: {COLORS["cyan"]}; border-radius: 6px; '
-                    f'width: 28px; height: 28px; display: flex; align-items: center; '
-                    f'justify-content: center;'
-                )
-                ui.label('POSITIONING').classes('text-xs font-bold tracking-wider').style(f'color: {COLORS["text"]}')
-
-            ui.separator().style(f'background: {COLORS["border"]}; margin: 8px 0;')
-
-            s_text, s_color = self._get_status('avg_distance_to_ball', avg_dist)
-            self._build_stat_card_row('Avg Distance', f'{avg_dist:.0f}m', s_text, s_color)
-            s_text, s_color = self._get_status('time_near_ball_pct', time_near)
-            self._build_stat_card_row('Time Near Ball', f'{time_near:.1f}%', s_text, s_color)
-            s_text, s_color = self._get_status('time_offensive_pct', time_off)
-            self._build_stat_card_row('Time Offensive', f'{time_off:.1f}%', s_text, s_color)
-
-            # Zone positioning bar
-            ui.space()
-            ui.label('ZONE POSITIONING').classes('text-xs font-semibold').style(f'color: {COLORS["text_muted"]}')
-            self._build_zone_bar(time_off)
-
-    def _build_zone_bar(self, offensive_pct: float) -> None:
-        """Build zone positioning visualization bar."""
-        offensive_pct = min(100, max(0, offensive_pct))
-        neutral_pct = max(0, 100 - offensive_pct) * 0.55
-        defensive_pct = 100 - offensive_pct - neutral_pct
-
-        with ui.column().classes('w-full gap-1'):
-            with ui.row().classes('w-full').style('height: 24px; border-radius: 6px; overflow: hidden;'):
-                if defensive_pct > 0:
-                    ui.label('').style(
-                        f'width: {defensive_pct}%; background: {COLORS["error"]}90; height: 100%;'
-                    )
-                if neutral_pct > 0:
-                    ui.label('').style(
-                        f'width: {neutral_pct}%; background: {COLORS["text_muted"]}60; height: 100%;'
-                    )
-                if offensive_pct > 0:
-                    ui.label('').style(
-                        f'width: {offensive_pct}%; background: {COLORS["success"]}90; height: 100%;'
-                    )
-
-            with ui.row().classes('w-full justify-between'):
-                ui.label(f'DEF {defensive_pct:.0f}%').classes('text-xs').style(f'color: {COLORS["error"]}')
-                ui.label(f'NEU {neutral_pct:.0f}%').classes('text-xs').style(f'color: {COLORS["text_muted"]}')
-                ui.label(f'OFF {offensive_pct:.0f}%').classes('text-xs').style(f'color: {COLORS["success"]}')
-
-    def _build_overview_report(self, overall_score: int, tips: list, result: Dict[str, Any]) -> None:
-        """Build the Overview Report panel on the right side."""
-        with ui.column().classes('w-80 gap-4'):
-            # Score card
-            with ui.card().classes('w-full fade-in').style(_card_style('padding: 20px; animation-delay: 0.15s;')):
-                ui.label('OVERVIEW REPORT').classes('text-xs font-bold tracking-wider').style(
-                    f'color: {COLORS["text_secondary"]}'
-                )
-                ui.space()
-
-                score_color = COLORS['success'] if overall_score >= 70 else COLORS['warning'] if overall_score >= 50 else COLORS['error']
-                score_option = self._make_gauge_option(overall_score, 'Score', score_color)
-                score_option['series'][0]['progress']['width'] = 10
-                score_option['series'][0]['axisLine']['lineStyle']['width'] = 10
-                score_option['series'][0]['detail']['fontSize'] = 28
-                ui.echart(score_option).style('width: 100%; height: 160px;')
-
-                pro_name = self.config.get('pro_to_study', 'Zen')
-                with ui.row().classes('items-center gap-2'):
-                    ui.icon('person', size='14px').style(f'color: {COLORS["accent"]}')
-                    ui.label(f'Comparing to: {pro_name}').classes('text-xs').style(f'color: {COLORS["text_secondary"]}')
-
-            # Tips card
-            with ui.card().classes('w-full fade-in').style(_card_style('padding: 16px 18px; animation-delay: 0.25s;')):
-                with ui.row().classes('items-center gap-2'):
-                    ui.icon('lightbulb', size='14px').classes('text-white').style(
-                        f'background: {COLORS["warning"]}; border-radius: 6px; '
-                        f'width: 28px; height: 28px; display: flex; align-items: center; '
-                        f'justify-content: center;'
-                    )
-                    ui.label('TIPS').classes('text-xs font-bold tracking-wider').style(f'color: {COLORS["text"]}')
-
-                ui.separator().style(f'background: {COLORS["border"]}; margin: 8px 0;')
-
-                if tips:
-                    for tip in tips[:4]:
-                        with ui.row().classes('items-start gap-2').style('margin-bottom: 8px;'):
-                            ui.icon('arrow_right', size='12px').style(
-                                f'color: {COLORS["primary"]}; margin-top: 2px;'
+            # Result header
+            with ui.card().classes('w-full fade-in').style(glass('padding: 20px 24px;')):
+                with ui.row().classes('w-full items-center justify-between'):
+                    with ui.row().classes('items-center gap-6'):
+                        with ui.column().classes('items-center gap-2'):
+                            ui.label('WIN' if won else 'LOSS').style(
+                                label_caps(f'color: {C["tertiary"] if won else C["error"]}; '
+                                           f'background: {(C["tertiary"] if won else C["error"])}20; '
+                                           f'padding: 4px 14px; border-radius: 20px;')
                             )
-                            ui.label(tip).classes('text-xs').style(f'color: {COLORS["text_secondary"]}')
-                else:
-                    ui.label('Jogue mais para receber dicas personalizadas.').classes('text-xs').style(
-                        f'color: {COLORS["text_muted"]}'
-                    )
+                            ui.label(score_str).style(
+                                f'font-size: 36px; font-weight: 900; color: {C["text"]}; line-height: 1;'
+                            )
 
-    def _build_heatmap(self, positions_sample: list) -> None:
-        """Build field heatmap showing player positions as a scatter plot."""
-        if not positions_sample or len(positions_sample) < 3:
-            return
+                        ui.html(f'<div style="width:1px; height:56px; background:rgba(255,255,255,0.1);"></div>')
 
-        positions = [[int(p[0]), int(p[1])] for p in positions_sample]
+                        for lbl, val in [('Game Mode', game_mode), ('Map', map_name)]:
+                            with ui.column().classes('gap-1'):
+                                ui.label(lbl.upper()).style(label_caps(f'font-size: 10px; color: {C["text_var"]};'))
+                                ui.label(val).style(stat_mono(f'font-size: 18px; font-weight: 600; color: {C["text"]};'))
 
-        option = {
-            'backgroundColor': '#1a3a2a',
-            'grid': {'left': 0, 'top': 0, 'right': 0, 'bottom': 0},
-            'xAxis': {'show': False, 'min': -4200, 'max': 4200, 'type': 'value'},
-            'yAxis': {'show': False, 'min': -5100, 'max': 5100, 'type': 'value'},
-            'series': [{
-                'type': 'scatter',
-                'data': positions,
-                'itemStyle': {
-                    'color': 'rgba(59, 130, 246, 0.7)',
-                    'shadowBlur': 8,
-                    'shadowColor': 'rgba(59, 130, 246, 0.3)',
-                },
-                'symbolSize': 10,
-                'markLine': {
-                    'silent': True,
-                    'symbol': 'none',
-                    'lineStyle': {'color': 'rgba(255,255,255,0.25)', 'type': 'solid', 'width': 1},
-                    'data': [
-                        [{'xAxis': 0, 'yAxis': -5100}, {'xAxis': 0, 'yAxis': 5100}],
-                    ],
-                    'label': {'show': False},
-                },
-                'markArea': {
-                    'silent': True,
-                    'label': {'show': False},
-                    'data': [
-                        # Field boundary
-                        [{'xAxis': -4200, 'yAxis': -5100, 'itemStyle': {'color': 'transparent', 'borderColor': 'rgba(255,255,255,0.15)', 'borderWidth': 2}}, {'xAxis': 4200, 'yAxis': 5100}],
-                        # Left goal area
-                        [{'xAxis': -4200, 'yAxis': -900, 'itemStyle': {'color': 'rgba(255,255,255,0.05)', 'borderColor': 'rgba(255,255,255,0.2)', 'borderWidth': 1}}, {'xAxis': -3900, 'yAxis': 900}],
-                        # Right goal area
-                        [{'xAxis': 3900, 'yAxis': -900, 'itemStyle': {'color': 'rgba(255,255,255,0.05)', 'borderColor': 'rgba(255,255,255,0.2)', 'borderWidth': 1}}, {'xAxis': 4200, 'yAxis': 900}],
-                    ],
-                },
-            }]
-        }
+                    with ui.column().classes('items-center gap-2'):
+                        ui.label('OVERALL SCORE').style(label_caps(f'font-size: 10px; color: {C["text_var"]};'))
+                        ui.label(f'{overall_score:.0f}/100').style(
+                            f'padding: 8px 20px; border-radius: 24px; font-size: 18px; font-weight: 700; '
+                            f'background: rgba(173,198,255,0.15); border: 1px solid rgba(173,198,255,0.3); '
+                            f'color: {C["primary"]};'
+                        )
 
-        with ui.card().classes('w-full fade-in').style(_card_style('padding: 16px 18px; animation-delay: 0.5s;')):
-            with ui.row().classes('items-center gap-2'):
-                ui.icon('place', size='14px').classes('text-white').style(
-                    f'background: {COLORS["primary"]}; border-radius: 6px; '
-                    f'width: 28px; height: 28px; display: flex; align-items: center; '
-                    f'justify-content: center;'
+            ui.space().style('height: 16px;')
+
+            # Skill gauges
+            with ui.card().classes('w-full fade-in').style(glass('padding: 24px; animation-delay: 0.1s;')):
+                ui.label('PERFORMANCE BREAKDOWN').style(label_caps(f'color: {C["text_var"]}; margin-bottom: 24px;'))
+                with ui.row().classes('w-full justify-between items-center px-4'):
+                    gauges = [
+                        (movement_score, 'Movement', C['primary']),
+                        (aerial_score, 'Aerial', C['secondary']),
+                        (positioning_score, 'Positioning', C['tertiary']),
+                        (boost_score, 'Boost', C['error']),
+                        (shooting_score, 'Shooting', '#acedff'),
+                    ]
+                    for value, label, color in gauges:
+                        self._build_ring_gauge(value, label, color)
+
+            ui.space().style('height: 16px;')
+
+            # Two columns: stats + heatmap
+            with ui.row().classes('w-full gap-6'):
+                with ui.column().classes('flex-1 gap-4'):
+                    self._build_boost_card_analysis(boost_collected, boost_used, boost_eff)
+                    self._build_shooting_card_analysis(goals, shots)
+                    self._build_positioning_card_analysis(avg_dist, time_off)
+
+                with ui.column().classes('flex-1'):
+                    self._build_heatmap_card(result.get('positions_sample', []))
+
+            ui.space().style('height: 16px;')
+
+            # Tips
+            if tips:
+                self._build_tips_analysis(tips)
+
+    def _build_ring_gauge(self, value: int, label: str, color: str) -> None:
+        circumference = 2 * math.pi * 36
+        offset = circumference * (1 - value / 100)
+        with ui.column().classes('items-center gap-3'):
+            ui.html(
+                f'<div style="position:relative; width:88px; height:88px;">'
+                f'<svg class="ring-chart" viewBox="0 0 100 100" style="width:88px; height:88px;">'
+                f'<circle class="ring-bg" cx="50" cy="50" r="36" stroke-width="8"/>'
+                f'<circle class="ring-progress" cx="50" cy="50" r="36" stroke="{color}" '
+                f'stroke-dasharray="{circumference:.1f}" stroke-dashoffset="{offset:.1f}" stroke-width="8"/>'
+                f'</svg>'
+                f'<div style="position:absolute; inset:0; display:flex; align-items:center; justify-content:center; '
+                f'font-family:JetBrains Mono; font-size:18px; font-weight:600; color:{color};">{value}</div>'
+                f'</div>'
+            )
+            ui.label(label.upper()).style(label_caps(f'font-size: 10px; color: {C["text_var"]};'))
+
+    def _build_boost_card_analysis(self, collected: float, used: float, efficiency: float) -> None:
+        with ui.card().classes('w-full fade-in').style(glass('padding: 16px 20px; animation-delay: 0.2s;')):
+            with ui.row().classes('items-center gap-3'):
+                ui.icon('bolt', size='18px').style(f'color: {C["primary"]};')
+                ui.label('BOOST').style(f'font-size: 16px; font-weight: 700;')
+
+            ui.separator().style(f'background: rgba(255,255,255,0.05); margin: 12px 0;')
+
+            for lbl, val in [('Collected', f'{collected:.0f}'), ('Efficiency', f'{efficiency:.0f}%')]:
+                with ui.row().classes('w-full justify-between').style('margin-bottom: 8px;'):
+                    ui.label(lbl).style(label_caps(f'font-size: 10px; color: {C["text_var"]};'))
+                    ui.label(val).style(stat_mono(f'font-size: 18px; font-weight: 600; color: {C["text"]};'))
+
+    def _build_shooting_card_analysis(self, goals: int, shots: int) -> None:
+        pct = (goals / shots * 100) if shots > 0 else 0
+        with ui.card().classes('w-full fade-in').style(glass('padding: 16px 20px; animation-delay: 0.25s;')):
+            with ui.row().classes('items-center gap-3'):
+                ui.icon('sports_soccer', size='18px').style(f'color: {C["primary"]};')
+                ui.label('SHOOTING').style(f'font-size: 16px; font-weight: 700;')
+
+            ui.separator().style(f'background: rgba(255,255,255,0.05); margin: 12px 0;')
+
+            with ui.row().classes('w-full justify-between gap-4'):
+                for lbl, val in [('Goals', str(goals)), ('Shots', str(shots)), ('Conversion', f'{pct:.0f}%')]:
+                    with ui.column().classes('gap-1'):
+                        ui.label(lbl.upper()).style(label_caps(f'font-size: 10px; color: {C["text_var"]};'))
+                        ui.label(val).style(stat_mono(f'font-size: 18px; font-weight: 600; color: {C["text"]};'))
+
+    def _build_positioning_card_analysis(self, avg_dist: float, time_off: float) -> None:
+        offensive = min(100, max(0, time_off))
+        neutral = max(0, 100 - offensive) * 0.55
+        defensive = 100 - offensive - neutral
+
+        with ui.card().classes('w-full fade-in').style(glass('padding: 16px 20px; animation-delay: 0.3s;')):
+            with ui.row().classes('items-center gap-3'):
+                ui.icon('place', size='18px').style(f'color: {C["primary"]};')
+                ui.label('POSITIONING').style(f'font-size: 16px; font-weight: 700;')
+
+            ui.separator().style(f'background: rgba(255,255,255,0.05); margin: 12px 0;')
+
+            with ui.row().classes('w-full justify-between').style('margin-bottom: 12px;'):
+                ui.label('Avg Distance').style(label_caps(f'font-size: 10px; color: {C["text_var"]};'))
+                ui.label(f'{avg_dist:.0f}m').style(stat_mono(f'font-size: 18px; font-weight: 600; color: {C["text"]};'))
+
+            ui.label('Zone Distribution').style(label_caps(f'font-size: 10px; color: {C["text_var"]}; margin-bottom: 8px;'))
+
+            with ui.row().classes('w-full').style('height: 12px; border-radius: 6px; overflow: hidden; background: rgba(255,255,255,0.05);'):
+                ui.html(
+                    f'<div style="display:flex; width:100%; height:100%;">'
+                    f'<div style="width:{defensive}%; background:{C["error_cont"]};"></div>'
+                    f'<div style="width:{neutral}%; background:{C["surface_variant"]};"></div>'
+                    f'<div style="width:{offensive}%; background:{C["tertiary_cont"]};"></div>'
+                    f'</div>'
                 )
-                ui.label('POSITION HEATMAP').classes('text-xs font-bold tracking-wider').style(f'color: {COLORS["text"]}')
+
+            with ui.row().classes('w-full justify-between').style('margin-top: 8px;'):
+                for lbl, val in [('DEF', defensive), ('NEU', neutral), ('OFF', offensive)]:
+                    ui.label(f'{lbl} {val:.0f}%').style(label_caps(f'font-size: 9px; color: {C["text_var"]};'))
+
+    def _build_heatmap_card(self, positions: list) -> None:
+        with ui.card().classes('w-full fade-in').style(glass('padding: 16px 20px; animation-delay: 0.35s;')):
+            ui.label('POSITION HEATMAP').style(label_caps(f'color: {C["text_var"]}; margin-bottom: 12px;'))
+
+            if not positions or len(positions) < 3:
+                with ui.column().classes('w-full items-center justify-center').style('height: 200px;'):
+                    ui.icon('place', size='32px').style(f'color: {C["text_dim"]}; opacity: 0.3;')
+                    ui.label('Sem dados de posição').style(f'font-size: 12px; color: {C["text_dim"]};')
+                return
+
+            pts = [[int(p[0]), int(p[1])] for p in positions]
+            option = {
+                'backgroundColor': '#0e2a1e',
+                'grid': {'left': 0, 'top': 0, 'right': 0, 'bottom': 0},
+                'xAxis': {'show': False, 'min': -4200, 'max': 4200, 'type': 'value'},
+                'yAxis': {'show': False, 'min': -5100, 'max': 5100, 'type': 'value'},
+                'series': [{
+                    'type': 'scatter', 'data': pts,
+                    'itemStyle': {'color': 'rgba(59,130,246,0.7)', 'shadowBlur': 8, 'shadowColor': 'rgba(59,130,246,0.3)'},
+                    'symbolSize': 10,
+                    'markLine': {
+                        'silent': True, 'symbol': 'none',
+                        'lineStyle': {'color': 'rgba(255,255,255,0.15)', 'type': 'solid', 'width': 1},
+                        'data': [[{'xAxis': 0, 'yAxis': -5100}, {'xAxis': 0, 'yAxis': 5100}]],
+                        'label': {'show': False}
+                    }
+                }]
+            }
 
             ui.echart(option).style(
-                'width: 100%; height: 250px; border-radius: 8px; '
-                f'border: 1px solid {COLORS["border"]};'
+                f'width: 100%; height: 200px; border-radius: 12px; '
+                f'border: 1px solid rgba(255,255,255,0.05);'
             )
 
-            with ui.row().classes('w-full justify-between').style('margin-top: 4px;'):
-                ui.label('← Defending').classes('text-xs').style(f'color: {COLORS["text_muted"]}')
-                ui.label(f'{len(positions)} positions sampled').classes('text-xs').style(f'color: {COLORS["text_muted"]}')
-                ui.label('Attacking →').classes('text-xs').style(f'color: {COLORS["text_muted"]}')
+    def _build_tips_analysis(self, tips: list) -> None:
+        with ui.card().classes('w-full fade-in').style(
+            glass('padding: 20px; border-left: 4px solid rgba(173,198,255,0.5); animation-delay: 0.4s;')
+        ):
+            with ui.row().classes('items-center gap-3').style('margin-bottom: 16px;'):
+                ui.icon('psychology', size='20px').style(f'color: {C["primary"]};')
+                ui.label('AI COACH ANALYSIS').style(
+                    f'font-size: 16px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em;'
+                )
 
-    def _get_analysis_comparison(self, result: Dict[str, Any]) -> Optional[Dict[str, Any]]:
-        """Get pro comparison data for the analysis page."""
+            for tip in tips[:3]:
+                with ui.row().classes('items-start gap-3').style('margin-bottom: 12px;'):
+                    ui.icon('check_circle', size='16px').style(f'color: {C["tertiary"]}; margin-top: 2px;')
+                    ui.label(tip).style(f'font-size: 13px; color: {C["text_var"]}; line-height: 1.5;')
+
+    def _add_ai_analysis_card(self, result: Dict[str, Any]) -> None:
+        if not self.ai_coach:
+            return
+        pro_name = self.config.get('pro_to_study', 'Zen')
+        playlist = result.get('playlist', 'ranked-doubles')
+        baseline_data = self.db.get_baseline(playlist, pro_name)
+        baseline = baseline_data.get('averages', {}) if baseline_data else None
+
+        response = self.ai_coach.analyze_replay(result, baseline, pro_name)
+        if response:
+            with self.analysis_container:
+                ui.space().style('height: 16px;')
+                self._build_tips_analysis([response])
+
+    def _get_analysis_comparison(self, result: Dict) -> Optional[Dict]:
         if not self.comparer:
             return None
         try:
@@ -866,471 +1236,452 @@ class Dashboard:
             if not baseline:
                 return None
             player_stats = {
-                'boost_avg': result.get('boost_collected', 0) / 100,  # rough proxy from local replay
+                'boost_avg': result.get('boost_collected', 0) / 100,
                 'avg_distance_to_ball': result.get('avg_distance_to_ball', 0),
                 'goals': result.get('goals', 0),
                 'assists': result.get('assists', 0),
                 'saves': result.get('saves', 0),
-                'shooting_pct': (result.get('goals', 0) / result.get('shots', 1) * 100) if result.get('shots', 0) > 0 else 0,
+                'shooting_pct': (result.get('goals', 0) / max(1, result.get('shots', 1)) * 100),
             }
             return self.comparer.compare(player_stats, baseline)
-        except Exception as e:
-            print(f"Erro na comparação: {e}")
+        except Exception:
             return None
 
-    def _build_tip_card(self, tip: Dict[str, str]) -> None:
-        icon_map = {'success': 'check_circle', 'warning': 'warning', 'error': 'error', 'info': 'info'}
-        color_map = {'success': COLORS['success'], 'warning': COLORS['warning'], 'error': COLORS['error'], 'info': COLORS['primary']}
-
-        tip_type = tip.get('type', 'info')
-        icon_name = icon_map.get(tip_type, 'lightbulb')
-        color = color_map.get(tip_type, COLORS['primary'])
-
-        with ui.card().classes('w-full').style(
-            f'background: {COLORS["card"]}; border-radius: 8px; padding: 10px; '
-            f'border: 1px solid {COLORS["border"]}; margin-bottom: 6px;'
-        ):
-            with ui.row().classes('items-start gap-2'):
-                ui.icon(icon_name, size='14px').style(
-                    f'background: {color}20; color: {color}; border-radius: 6px; '
-                    f'width: 28px; height: 28px; display: flex; align-items: center; '
-                    f'justify-content: center;'
-                )
-                with ui.column().classes('flex-1 gap-0'):
-                    ui.label(tip.get('title', '')).classes('text-xs font-semibold').style(f'color: {COLORS["text"]}')
-                    ui.label(tip.get('message', '')).classes('text-xs').style(f'color: {COLORS["text_secondary"]}')
-
-    def _generate_analysis_tips(self, result: Dict[str, Any]) -> list:
+    def _generate_analysis_tips(self, result: Dict) -> list:
         tips = []
-        goals = result.get('goals', 0)
-        saves = result.get('saves', 0)
-        shots = result.get('shots', 0)
         avg_dist = result.get('avg_distance_to_ball', 0)
-        time_near_ball = result.get('time_near_ball_pct', 0)
-        time_offensive = result.get('time_offensive_pct', 0)
+        time_near = result.get('time_near_ball_pct', 0)
+        time_off = result.get('time_offensive_pct', 0)
+        goals = result.get('goals', 0)
+        shots = result.get('shots', 0)
+        saves = result.get('saves', 0)
 
         if avg_dist > 1500:
-            tips.append({'type': 'warning', 'title': 'Muito longe da bola', 'message': f'Distância média: {avg_dist:.0f}. Fique mais perto para ter mais contato.'})
-        elif avg_dist < 500:
-            tips.append({'type': 'success', 'title': 'Boa proximidade', 'message': f'Distância média: {avg_dist:.0f}. Continue assim!'})
-        if time_near_ball < 30:
-            tips.append({'type': 'warning', 'title': 'Pouco tempo com a bola', 'message': f'Apenas {time_near_ball:.1f}% do tempo perto da bola.'})
-        if time_offensive > 60:
-            tips.append({'type': 'success', 'title': 'Bom tempo no ataque', 'message': f'{time_offensive:.1f}% do tempo no ataque. Continue pressionando!'})
-        elif time_offensive < 40:
-            tips.append({'type': 'info', 'title': 'Mais tempo no ataque', 'message': f'Apenas {time_offensive:.1f}% no ataque. Suba mais quando possível.'})
+            tips.append(f'Muito longe da bola (distância: {avg_dist:.0f}). Fique mais perto para ter mais contato.')
+        if time_near < 30:
+            tips.append(f'Apenas {time_near:.1f}% do tempo perto da bola. Pressione mais.')
+        if time_off > 60:
+            tips.append(f'Bom tempo no ataque ({time_off:.1f}%). Continue pressionando!')
         if shots > 0 and goals == 0:
-            tips.append({'type': 'warning', 'title': 'Melhore a finalização', 'message': f'{shots} chutes, 0 gols. Pratique a finalização.'})
-        elif goals > 0 and shots > 0:
-            conversion = (goals / shots) * 100
-            if conversion > 50:
-                tips.append({'type': 'success', 'title': 'Ótima conversão', 'message': f'{conversion:.0f}% de conversão!'})
-            else:
-                tips.append({'type': 'info', 'title': 'Conversão razoável', 'message': f'{conversion:.0f}% de conversão. Seja mais preciso.'})
+            tips.append(f'{shots} chutes, 0 gols. Pratique a finalização.')
         if saves > 2:
-            tips.append({'type': 'success', 'title': 'Boa defesa', 'message': f'{saves} defesas. Continue protegendo o gol!'})
+            tips.append(f'Boa defesa! {saves} defesas. Continue protegendo o gol.')
         if not tips:
-            tips.append({'type': 'info', 'title': 'Continue jogando', 'message': 'Jogue mais partidas para receber dicas mais detalhadas!'})
+            tips.append('Continue jogando para receber dicas mais detalhadas!')
         return tips
 
-    # ── HISTORY PAGE ───────────────────────────────────────────────────────
+    # ════════════════════════════════════════════════════════════════════════
+    # MATCH HISTORY PAGE
+    # ════════════════════════════════════════════════════════════════════════
 
-    def _show_history(self) -> None:
+    def _show_match_history(self) -> None:
         self.main_area.clear()
         with self.main_area:
-            with ui.row().classes('items-center gap-3'):
-                ui.icon('history', size='18px').classes('text-white').style(
-                    f'background: {COLORS["primary"]}; border-radius: 8px; '
-                    f'width: 36px; height: 36px; display: flex; align-items: center; '
-                    f'justify-content: center;'
-                )
-                with ui.column().classes('gap-0'):
-                    ui.label('Histórico de Partidas').classes('text-xl font-bold').style(f'color: {COLORS["text"]}')
-                    ui.label('Todas as partidas jogadas').classes('text-xs').style(f'color: {COLORS["text_muted"]}')
+            self._build_top_bar('Match History', 'Todas as partidas jogadas')
 
-            ui.space()
-            self._build_history_content()
-
-    def _build_history_content(self) -> None:
-        matches = self.db.get_matches(limit=50)
-
-        if not matches:
-            with ui.column().classes('w-full items-center justify-center flex-1'):
-                ui.icon('inbox', size='48px').style(f'color: {COLORS["text_muted"]}')
-                ui.label('Nenhuma partida registrada').classes('text-base').style(f'color: {COLORS["text_muted"]}')
-                ui.label('Jogue partidas para vê-las aqui').classes('text-xs').style(f'color: {COLORS["text_muted"]}')
-            return
-
-        for match in matches:
-            self._build_history_item(match)
-
-    def _build_history_item(self, match: dict) -> None:
-        result = match.get('result', '')
-        result_color = COLORS['success'] if result == 'win' else COLORS['error']
-        result_label = "Vitória" if result == 'win' else "Derrota"
-        prox = match.get('proximity_score', 0) or 0
-
-        with ui.card().classes('w-full').style(
-            f'background: {COLORS["card"]}; border: 1px solid {COLORS["border"]}; '
-            f'border-radius: 10px; padding: 12px 14px; margin-bottom: 6px;'
-        ):
-            with ui.row().classes('w-full items-center gap-3'):
-                ui.label(result_label[0]).classes('text-xs font-bold text-white').style(
-                    f'background: {result_color}; border-radius: 8px; '
-                    f'width: 32px; height: 32px; display: flex; align-items: center; '
-                    f'justify-content: center;'
-                )
-                with ui.column().classes('flex-1 gap-0'):
-                    ui.label(result_label).classes('text-xs font-bold').style(f'color: {COLORS["text"]}')
-                    ui.label(f"{str(match.get('date', ''))[:10]} | {match.get('playlist', 'N/A')}").classes('text-xs').style(f'color: {COLORS["text_muted"]}')
-
-                with ui.column().classes('items-end gap-0'):
-                    ui.label(f"{match.get('goals', 0)}G {match.get('assists', 0)}A {match.get('saves', 0)}S").classes('text-xs font-medium').style(f'color: {COLORS["text_secondary"]}')
-                    ui.label(f"Score: {match.get('score', 0)}").classes('text-xs').style(f'color: {COLORS["text_muted"]}')
-
-                ui.label(f"{prox:.0f}%").classes('text-xs font-bold text-white').style(
-                    f'background: {COLORS["cyan"]}; border-radius: 6px; padding: 4px 8px;'
-                )
-
-            # Expanded details
-            with ui.expansion('Detalhes da Partida', icon='expand_more').classes('w-full').style(
-                f'background: {COLORS["surface"]}; border-radius: 8px; margin-top: 8px;'
+            # Filter tabs
+            with ui.row().classes('items-center').style(
+                f'background: {C["surface_low"]}; padding: 4px; border-radius: 12px; '
+                f'border: 1px solid rgba(255,255,255,0.05); margin-bottom: 24px; width: fit-content;'
             ):
-                ui.label(f"Playlist: {match.get('playlist', 'N/A')}").classes('text-xs').style(f'color: {COLORS["text_secondary"]}')
-                ui.label(f"Oponentes: {match.get('opponent_rank', 'N/A')}").classes('text-xs').style(f'color: {COLORS["text_secondary"]}')
+                for label in ['All', '1v1', '2v2', '3v3']:
+                    is_active = label == 'All'
+                    ui.button(label).style(
+                        f'padding: 8px 24px; border-radius: 8px; font-size: 12px; font-weight: 700; '
+                        f'{"background: " + C["primary"] + "; color: " + C["on_primary"] + ";" if is_active else "background: transparent; color: " + C["text_var"] + ";"}'
+                        f'border: none; text-transform: none;'
+                    ).props('flat')
 
-                ui.label('Métricas').classes('text-xs font-semibold').style(f'color: {COLORS["text"]}')
-                self._build_match_metrics_inline(match)
+            matches = self.db.get_matches(limit=50)
+            if not matches:
+                with ui.column().classes('w-full items-center justify-center').style('padding: 80px 0;'):
+                    ui.icon('inbox', size='64px').style(f'color: {C["text_dim"]}; opacity: 0.3;')
+                    ui.label('Nenhuma partida registrada').style(f'font-size: 16px; color: {C["text_dim"]}; margin-top: 12px;')
+                    ui.label('Jogue algumas partidas para ver seus resultados aqui.').style(
+                        f'font-size: 13px; color: {C["text_dim"]};'
+                    )
+                return
 
-                ui.label(f"Replay ID: {match.get('replay_id', 'N/A')}").classes('text-xs').style(
-                    f'color: {COLORS["text_muted"]}; background: {COLORS["surface"]}; '
-                    f'border-radius: 6px; padding: 8px;'
+            with ui.column().classes('w-full gap-3'):
+                for match in matches:
+                    self._build_history_card(match)
+
+    def _build_history_card(self, match: dict) -> None:
+        result = match.get('result', '')
+        is_win = result == 'win'
+        border_class = 'win-border' if is_win else 'loss-border'
+        result_color = C['success'] if is_win else C['error']
+        result_letter = 'W' if is_win else 'L'
+
+        with ui.card().classes(f'w-full {border_class}').style(
+            glass('padding: 16px 20px;')
+        ):
+            with ui.row().classes('w-full items-center gap-6'):
+                ui.html(
+                    f'<div style="width:56px; height:56px; border-radius:50%; '
+                    f'border: 2px solid {result_color}50; background: {result_color}10; '
+                    f'display:flex; align-items:center; justify-content:center; '
+                    f'font-size: 20px; font-weight:900; color: {result_color}; flex-shrink:0;">'
+                    f'{result_letter}</div>'
                 )
 
-    def _build_match_metrics_inline(self, match: dict) -> None:
-        metrics = [
-            ("Boost Médio", f"{match.get('boost_avg', 0):.1f}", COLORS['warning']),
-            ("Velocidade", f"{match.get('avg_speed', 0):.0f} u/s", COLORS['primary']),
-            ("Dist. Bola", f"{match.get('avg_distance_to_ball', 0):.0f}m", COLORS['accent']),
-            ("Supersônico", f"{match.get('time_supersonic', 0):.1f}s", COLORS['cyan']),
-        ]
-
-        with ui.row().classes('w-full gap-2'):
-            for label, value, color in metrics:
-                with ui.card().classes('flex-1').style(
-                    f'background: {COLORS["card"]}; border-radius: 6px; padding: 5px 8px; '
-                    f'border: 1px solid {COLORS["border"]};'
-                ):
-                    with ui.row().classes('items-center gap-1'):
-                        ui.label().style(
-                            f'width: 3px; height: 3px; border-radius: 2px; background: {color};'
+                with ui.column().classes('flex-1 gap-1'):
+                    ui.label(match.get('playlist', '2v2 Ranked')).style(
+                        f'font-size: 16px; font-weight: 700; color: {C["text"]};'
+                    )
+                    with ui.row().classes('items-center gap-4'):
+                        ui.label(str(match.get('date', ''))[:10]).style(
+                            f'font-size: 12px; color: {C["text_var"]};'
                         )
-                        ui.label(label).classes('text-xs').style(f'color: {COLORS["text_muted"]}')
-                        ui.space()
-                        ui.label(value).classes('text-xs font-semibold').style(f'color: {COLORS["text"]}')
+                        ui.label('•').style(f'color: {C["text_dim"]};')
+                        ui.label(match.get('playlist', 'N/A')).style(
+                            f'font-size: 12px; color: {C["text_var"]};'
+                        )
 
-    # ── SETTINGS PAGE ──────────────────────────────────────────────────────
+                goals = match.get('goals', 0)
+                assists = match.get('assists', 0)
+                saves = match.get('saves', 0)
+                score = match.get('score', 0)
+
+                with ui.column().classes('items-center gap-1'):
+                    ui.label(str(score)).style(stat_mono(f'font-size: 20px; font-weight: 700; color: {C["primary"]};'))
+                    ui.label('SCORE').style(label_caps(f'font-size: 9px; color: {C["text_dim"]};'))
+
+                with ui.row().classes('items-center gap-4'):
+                    for val, lbl in [(goals, 'G'), (assists, 'A'), (saves, 'S')]:
+                        with ui.column().classes('items-center gap-0'):
+                            ui.label(str(val)).style(stat_mono(f'font-size: 16px; font-weight: 700;'))
+                            ui.label(lbl).style(label_caps(f'font-size: 9px; color: {C["text_dim"]};'))
+
+                prox = match.get('proximity_score', 0) or 0
+                ui.html(
+                    f'<div style="padding: 8px 14px; border-radius: 20px; '
+                    f'background: rgba(76,215,246,0.1); border: 1px solid rgba(76,215,246,0.3); '
+                    f'display: flex; flex-direction: column; align-items: center;">'
+                    f'<span style="font-size: 9px; color: {C["tertiary"]}; font-weight: 700; text-transform: uppercase;">PROX</span>'
+                    f'<span style="font-size: 16px; font-weight: 700; color: {C["tertiary"]};">{prox:.0f}%</span>'
+                    f'</div>'
+                )
+
+    # ════════════════════════════════════════════════════════════════════════
+    # PRO COMPARISON PAGE
+    # ════════════════════════════════════════════════════════════════════════
+
+    def _show_pro_comparison(self) -> None:
+        self.main_area.clear()
+        with self.main_area:
+            with ui.row().classes('w-full items-center justify-between').style('margin-bottom: 24px;'):
+                with ui.row().classes('items-center gap-4'):
+                    ui.label('Professional Comparison').style(
+                        f'font-size: 24px; font-weight: 700; color: {C["text"]};'
+                    )
+                    ui.button('Zen ▾').style(
+                        f'background: {C["surface_high"]}; border: 1px solid rgba(255,255,255,0.1); '
+                        f'border-radius: 24px; padding: 8px 20px; color: {C["text"]}; font-weight: 600; text-transform: none;'
+                    )
+
+            # Similarity hero
+            with ui.card().classes('w-full radar-bg fade-in').style(
+                glass('padding: 40px; overflow: hidden;')
+            ):
+                ui.html(
+                    '<div style="position:absolute; top:-100px; right:-100px; width:300px; height:300px; '
+                    f'background: rgba(173,198,255,0.05); border-radius: 50%; filter: blur(100px); pointer-events:none;"></div>'
+                )
+
+                with ui.row().classes('w-full items-center gap-12'):
+                    ui.html(self._svg_large_ring(72, 160, C['primary']))
+
+                    with ui.column().classes('gap-4'):
+                        with ui.row().classes('items-center gap-6'):
+                            ui.avatar(icon='person', color=C['primary_container'], text_color='white', size='80px').style(
+                                'border-radius: 16px;'
+                            )
+                            with ui.column().classes('gap-2'):
+                                ui.label('You are 72% similar to Zen').style(
+                                    f'font-size: 32px; font-weight: 900; color: {C["text"]}; line-height: 1.2;'
+                                )
+                                ui.label('In 2v2 Ranked Matches (Season 12)').style(
+                                    f'font-size: 16px; color: {C["text_var"]};'
+                                )
+
+                        with ui.row().classes('gap-3'):
+                            ui.html(
+                                f'<div style="padding: 6px 16px; border-radius: 20px; background: rgba(173,198,255,0.1); '
+                                f'border: 1px solid rgba(173,198,255,0.2); font-size: 14px; font-weight: 600; color: {C["primary"]};">'
+                                f'Rank: Grand Champion III</div>'
+                            )
+                            ui.html(
+                                f'<div style="padding: 6px 16px; border-radius: 20px; background: rgba(76,215,246,0.1); '
+                                f'border: 1px solid rgba(76,215,246,0.2); font-size: 14px; font-weight: 600; color: {C["tertiary"]};">'
+                                f'Playstyle: Aggressive Finisher</div>'
+                            )
+
+            ui.space().style('height: 24px;')
+
+            # Detailed comparison
+            with ui.row().classes('w-full gap-6'):
+                self._build_detailed_comparison_bars()
+
+                # AI Insights
+                with ui.card().classes('w-96 fade-in').style(glass('padding: 0; animation-delay: 0.2s;')):
+                    with ui.row().classes('items-center gap-3').style(
+                        f'padding: 20px; background: rgba(173,198,255,0.03); border-bottom: 1px solid rgba(255,255,255,0.05);'
+                    ):
+                        ui.icon('auto_awesome', size='20px').style(f'color: {C["primary"]};')
+                        ui.label('AI Coach Insights').style(f'font-size: 16px; font-weight: 700;')
+
+                    with ui.column().classes('p-5 gap-6'):
+                        # Biggest gap
+                        with ui.column().classes('gap-2'):
+                            with ui.row().classes('w-full justify-between'):
+                                ui.label('Biggest Gap').style(label_caps(f'font-size: 11px; color: {C["error"]};'))
+                                ui.label('-18%').style(f'font-size: 11px; font-weight: 700; color: {C["error"]};')
+                            ui.label('Boost Management').style(f'font-size: 14px; font-weight: 600; color: {C["text"]};')
+                            ui.label('You\'re consuming significantly more boost than Zen for the same field coverage.').style(
+                                f'font-size: 12px; color: {C["text_var"]}; line-height: 1.5;'
+                            )
+
+                        ui.separator().style(f'background: rgba(255,255,255,0.05);')
+
+                        # Closest stat
+                        with ui.column().classes('gap-2'):
+                            with ui.row().classes('w-full justify-between'):
+                                ui.label('Closest Stat').style(label_caps(f'font-size: 11px; color: {C["tertiary"]};'))
+                                ui.label('+3%').style(f'font-size: 11px; font-weight: 700; color: {C["tertiary"]};')
+                            ui.label('Positioning').style(f'font-size: 14px; font-weight: 600; color: {C["text"]};')
+                            ui.label('Your average distance to the ball is nearly identical to Zen\'s form.').style(
+                                f'font-size: 12px; color: {C["text_var"]}; line-height: 1.5;'
+                            )
+
+    def _build_detailed_comparison_bars(self) -> None:
+        with ui.card().classes('flex-1 fade-in').style(glass('padding: 24px; animation-delay: 0.1s;')):
+            with ui.row().classes('w-full items-center justify-between').style('margin-bottom: 20px;'):
+                ui.label('Metric Comparison').style(f'font-size: 18px; font-weight: 700;')
+                with ui.row().classes('gap-4'):
+                    for color, lbl in [(C['primary'], 'You'), ('rgba(255,255,255,0.2)', 'Zen')]:
+                        with ui.row().classes('items-center gap-2'):
+                            ui.html(f'<div style="width:12px; height:12px; border-radius:3px; background:{color};"></div>')
+                            ui.label(lbl).style(f'font-size: 11px; color: {C["text_var"]};')
+
+            stats = [
+                ('Boost Usage (Avg/Min)', 342, 415, C['error'], '-18%', 'down'),
+                ('Time Supersonic (%)', 18.4, 22, C['tertiary'], '+3%', 'up'),
+                ('Avg Distance to Ball', 1240, 1240, C['text_dim'], 'MATCHED', 'none'),
+                ('Shooting Accuracy (%)', 42.8, 51, C['error'], '-9%', 'down'),
+                ('Goals per Game', 1.2, 1.8, C['error'], '-33%', 'down'),
+                ('Saves per Game', 2.1, 1.5, C['tertiary'], '+40%', 'up'),
+            ]
+
+            for label, you_val, pro_val, status_color, status_text, direction in stats:
+                you_pct = min(100, (you_val / max(pro_val, 1)) * 100) if pro_val > 0 else 50
+                pro_pct = min(100, 100)
+
+                with ui.column().classes('w-full gap-2').style('margin-bottom: 16px;'):
+                    with ui.row().classes('w-full justify-between items-center'):
+                        ui.label(label).style(
+                            stat_mono(f'font-size: 12px; color: {C["text_var"]}; text-transform: uppercase; letter-spacing: 0.05em;')
+                        )
+                        with ui.row().classes('items-center gap-2'):
+                            ui.label(str(you_val)).style(stat_mono(f'font-size: 16px; font-weight: 600; color: {C["primary"]};'))
+                            if direction != 'none':
+                                ui.html(
+                                    f'<span style="font-size:11px; font-weight:700; color:{status_color}; display:flex; align-items:center; gap:2px;">'
+                                    f'<span class="material-symbols-outlined" style="font-size:14px;">arrow_{"upward" if direction == "up" else "downward"}</span>'
+                                    f'{status_text}</span>'
+                                )
+                            else:
+                                ui.html(
+                                    f'<span style="padding: 2px 8px; border-radius: 4px; background: rgba(255,255,255,0.05); '
+                                    f'font-size: 10px; color: rgba(255,255,255,0.5);">{status_text}</span>'
+                                )
+
+                    with ui.column().classes('w-full gap-1'):
+                        ui.html(
+                            f'<div class="stat-bar"><div style="width:{you_pct:.0f}%; background:{C["primary"]}; border-radius:3px;"></div></div>'
+                        )
+                        ui.html(
+                            f'<div class="stat-bar"><div style="width:{pro_pct:.0f}%; background:rgba(255,255,255,0.15); border-radius:3px;"></div></div>'
+                        )
+
+    # ════════════════════════════════════════════════════════════════════════
+    # PROGRESS PAGE
+    # ════════════════════════════════════════════════════════════════════════
+
+    def _show_progress(self) -> None:
+        self.main_area.clear()
+        with self.main_area:
+            self._build_top_bar('Progress', 'Sua evolução ao longo do tempo')
+            ui.label('Coming soon — gráficos detalhados de evolução por temporada.').style(
+                f'color: {C["text_dim"]}; font-size: 14px;'
+            )
+
+    # ════════════════════════════════════════════════════════════════════════
+    # ACHIEVEMENTS PAGE
+    # ════════════════════════════════════════════════════════════════════════
+
+    def _show_achievements(self) -> None:
+        self.main_area.clear()
+        with self.main_area:
+            self._build_top_bar('Achievements', 'Conquistas e marcos desbloqueados')
+
+            badges = [
+                ('sports_esports', 'First Replay', 'Analise seu primeiro replay', True, C['primary']),
+                ('bolt', 'Boost Master', 'Colete 10.000 boost pads', True, C['warning']),
+                ('emoji_events', '5 Win Streak', 'Ganhe 5 partidas seguidas', True, C['tertiary']),
+                ('psychology', 'AI User', 'Use o AI Coach pela primeira vez', True, C['secondary']),
+                ('trending_up', 'Pro 80%', 'Alcance 80% de proximidade com um pro', False, C['text_dim']),
+                ('military_tech', 'Champion', 'Alcance o rank Champion', False, C['text_dim']),
+                ('speed', 'Speed Demon', 'Mantenha 1800+ u/s de média', False, C['text_dim']),
+                ('shield', 'Iron Wall', 'Faça 5+ defesas em 10 partidas', False, C['text_dim']),
+            ]
+
+            with ui.row().classes('w-full flex-wrap gap-4'):
+                for icon, title, desc, unlocked, color in badges:
+                    opacity = '1' if unlocked else '0.3'
+                    with ui.card().classes('fade-in').style(
+                        glass(f'padding: 20px; width: 200px; opacity: {opacity}; animation-delay: 0.05s;')
+                    ):
+                        ui.html(
+                            f'<div style="{icon_circle(48, f"{color}20")} margin-bottom: 12px;">'
+                            f'<span class="material-symbols-outlined" style="color:{color}; font-size:24px;">{icon}</span>'
+                            f'</div>'
+                        )
+                        ui.label(title).style(f'font-size: 14px; font-weight: 700; color: {C["text"]};')
+                        ui.label(desc).style(f'font-size: 11px; color: {C["text_var"]}; margin-top: 4px; line-height: 1.4;')
+
+    # ════════════════════════════════════════════════════════════════════════
+    # SETTINGS PAGE
+    # ════════════════════════════════════════════════════════════════════════
 
     def _show_settings(self) -> None:
         self.main_area.clear()
         with self.main_area:
-            with ui.row().classes('items-center gap-3'):
-                ui.icon('settings', size='18px').classes('text-white').style(
-                    f'background: {COLORS["warning"]}; border-radius: 8px; '
-                    f'width: 36px; height: 36px; display: flex; align-items: center; '
-                    f'justify-content: center;'
-                )
-                with ui.column().classes('gap-0'):
-                    ui.label('Configurações').classes('text-xl font-bold').style(f'color: {COLORS["text"]}')
-                    ui.label('Preferências do aplicativo').classes('text-xs').style(f'color: {COLORS["text_muted"]}')
+            self._build_top_bar('Settings', 'Preferências do aplicativo')
 
-            ui.space()
+            with ui.column().classes('w-96 gap-6'):
+                # Monitoring
+                with ui.card().classes('w-full fade-in').style(glass('padding: 24px;')):
+                    ui.label('Monitoring').style(f'font-size: 16px; font-weight: 700; margin-bottom: 16px;')
 
-            with ui.card().classes('w-96').style(
-                _card_style('padding: 20px;')
-            ):
-                ui.label('Preferências').classes('text-sm font-bold').style(f'color: {COLORS["text"]}')
-                ui.space()
+                    self.sw_monitor = ui.switch(
+                        'Monitoramento Automático',
+                        value=self.config.get('auto_start_watcher', True)
+                    ).style(f'margin-bottom: 12px;')
 
-                self.switch_monitoring = ui.switch(
-                    'Monitoramento Automático',
-                    value=self.config.get('auto_start_watcher', True)
-                ).props(f'color="{COLORS["success"]}"')
+                    self.sw_upload = ui.switch(
+                        'Auto-Upload para Ballchasing',
+                        value=self.config.get('auto_upload', False)
+                    ).style(f'margin-bottom: 12px;')
 
-                self.switch_notifications = ui.switch(
-                    'Notificações',
-                    value=self.config.get('notifications', False)
-                ).props(f'color="{COLORS["primary"]}"')
+                    self.sw_notif = ui.switch(
+                        'Notificações',
+                        value=self.config.get('notifications', False)
+                    )
 
-                self.switch_auto_upload = ui.switch(
-                    'Auto-Upload para Ballchasing',
-                    value=self.config.get('auto_upload', False)
-                ).props(f'color="{COLORS["accent"]}"')
+                # AI Coach
+                with ui.card().classes('w-full fade-in').style(glass('padding: 24px; animation-delay: 0.1s;')):
+                    ui.label('AI Coach').style(f'font-size: 16px; font-weight: 700; margin-bottom: 16px;')
 
-                ui.space()
+                    api_key = self.config.get('nvidia_api_key', '')
+                    if api_key:
+                        ui.label(f'✓ Connected ({api_key[:12]}...)').style(
+                            f'font-size: 13px; color: {C["tertiary"]}; margin-bottom: 8px;'
+                        )
+                    else:
+                        ui.label('✗ Not configured').style(
+                            f'font-size: 13px; color: {C["error"]}; margin-bottom: 8px;'
+                        )
 
-                ui.button('Salvar Configurações', on_click=self._save_settings).classes(
-                    'text-white w-72'
-                ).style(f'background: {COLORS["success"]}; text-transform: none;')
+                    ui.label('Model: nvidia/llama-3.1-nemotron-70b-instruct').style(
+                        f'font-size: 11px; color: {C["text_dim"]};'
+                    )
+
+                # Save
+                ui.button('Salvar Configurações').style(
+                    f'background: {C["primary_container"]}; color: {C["on_primary"]}; '
+                    f'border-radius: 16px; padding: 14px 24px; font-weight: 700; '
+                    f'width: 100%; text-transform: none;'
+                ).on_click(self._save_settings)
 
     def _save_settings(self) -> None:
-        self.config['auto_start_watcher'] = self.switch_monitoring.value
-        self.config['notifications'] = self.switch_notifications.value
-        self.config['auto_upload'] = self.switch_auto_upload.value
+        self.config['auto_start_watcher'] = self.sw_monitor.value
+        self.config['auto_upload'] = self.sw_upload.value
+        self.config['notifications'] = self.sw_notif.value
 
-        config_path = Path("config.json")
+        config_path = Path('config.json')
         try:
             with open(config_path, 'r') as f:
-                config_data = json.load(f)
-            config_data['auto_start_watcher'] = self.switch_monitoring.value
-            config_data['notifications'] = self.switch_notifications.value
-            config_data['auto_upload'] = self.switch_auto_upload.value
+                data = json.load(f)
+            data['auto_start_watcher'] = self.sw_monitor.value
+            data['auto_upload'] = self.sw_upload.value
+            data['notifications'] = self.sw_notif.value
             with open(config_path, 'w') as f:
-                json.dump(config_data, f, indent=2)
-        except (json.JSONDecodeError, IOError):
+                json.dump(data, f, indent=2)
+        except Exception:
             pass
 
-        ui.notification('Configurações salvas com sucesso!', type='positive',
-                        color=COLORS['success'])
-        self._refresh_data()
+        ui.notification('Configurações salvas!', type='positive', color=C['tertiary'])
 
-    # ── DATA REFRESH ───────────────────────────────────────────────────────
+    # ════════════════════════════════════════════════════════════════════════
+    # SVG HELPERS
+    # ════════════════════════════════════════════════════════════════════════
+
+    def _svg_ring(self, pct: int, size: int, color: str) -> str:
+        r = size // 2 - 6
+        c = 2 * math.pi * r
+        offset = c * (1 - pct / 100)
+        return (
+            f'<div style="position:relative; width:{size}px; height:{size}px;">'
+            f'<svg class="ring-chart" viewBox="0 0 100 100" style="width:{size}px; height:{size}px;">'
+            f'<circle class="ring-bg" cx="50" cy="50" r="{r}" stroke-width="6"/>'
+            f'<circle class="ring-progress" cx="50" cy="50" r="{r}" stroke="{color}" '
+            f'stroke-dasharray="{c:.1f}" stroke-dashoffset="{offset:.1f}" stroke-width="6"/>'
+            f'</svg>'
+            f'<div style="position:absolute; inset:0; display:flex; align-items:center; justify-content:center;">'
+            f'<span class="material-symbols-outlined" style="color:{color};">trending_up</span>'
+            f'</div>'
+            f'</div>'
+        )
+
+    def _svg_large_ring(self, pct: int, size: int, color: str) -> str:
+        r = size // 2 - 8
+        c = 2 * math.pi * r
+        offset = c * (1 - pct / 100)
+        return (
+            f'<div style="position:relative; width:{size}px; height:{size}px;">'
+            f'<svg class="ring-chart" viewBox="0 0 100 100" style="width:{size}px; height:{size}px;">'
+            f'<circle class="ring-bg" cx="50" cy="50" r="{r}" stroke-width="3"/>'
+            f'<circle class="ring-progress" cx="50" cy="50" r="{r}" stroke="{color}" '
+            f'stroke-dasharray="{c:.1f}" stroke-dashoffset="{offset:.1f}" stroke-width="3" '
+            f'style="filter: drop-shadow(0 0 15px {color}99);"/>'
+            f'</svg>'
+            f'<div style="position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center;">'
+            f'<span style="font-size: 48px; font-weight: 900; color: {color}; line-height: 1;">{pct}%</span>'
+            f'<span style="font-size: 11px; letter-spacing: 0.1em; font-weight: 600; color: {C["text_var"]}; text-transform: uppercase; margin-top: 4px;">SIMILAR TO ZEN</span>'
+            f'</div>'
+            f'</div>'
+        )
+
+    # ════════════════════════════════════════════════════════════════════════
+    # DATA REFRESH
+    # ════════════════════════════════════════════════════════════════════════
 
     def _refresh_data(self) -> None:
-        # Only update dashboard widgets when on the dashboard page
-        # Other pages destroy these widgets via main_area.clear()
         if self.current_page != 0:
             return
-
         try:
-            matches = self.db.get_matches(limit=10, playlist=self.current_playlist)
-            today_matches = self.db.get_today_matches()
-
+            matches = self.db.get_matches(limit=10)
+            today = self.db.get_today_matches()
             if matches:
                 latest = matches[0]
-                self.boost_value.text = f"{latest.get('boost_avg', 0):.1f}"
-                score = latest.get('proximity_score', 0) or 0
-                self.proximity_value.text = f"{score:.1f}%"
-                self.proximity_bar.value = (score or 0) / 100
-
-            self.matches_value.text = str(len(today_matches))
-
-            if matches:
-                wins = sum(1 for m in matches if m.get('result') == 'win')
-                win_rate = (wins / len(matches)) * 100
-                self.winrate_value.text = f"{win_rate:.0f}%"
-
-            self._update_evolution_charts(matches)
-            self._update_comparison(matches)
-            self._update_tips()
-            self._update_table(matches)
-
-        except Exception as e:
-            print(f"Erro ao atualizar dados: {e}")
-
-    def _update_evolution_charts(self, matches: list) -> None:
-        from dashboard.charts import create_evolution_chart, CHART_COLORS
-
-        self.evolution_container.clear()
-
-        if not matches or len(matches) < 2:
-            with self.evolution_container:
-                with ui.column().classes('w-full items-center justify-center').style('height: 180px;'):
-                    ui.icon('show_chart', size='28px').style(f'color: {COLORS["text_muted"]}')
-                    ui.label('Jogue mais partidas para ver gráficos').classes('text-xs').style(f'color: {COLORS["text_muted"]}')
-            return
-
-        sorted_matches = sorted(matches, key=lambda x: x.get('date', ''), reverse=False)
-
-        with self.evolution_container:
-            with ui.row().classes('w-full gap-2'):
-                create_evolution_chart(sorted_matches, 'goals', 'Gols por Partida', CHART_COLORS['primary'])
-                create_evolution_chart(sorted_matches, 'score', 'Score por Partida', CHART_COLORS['cyan'])
-            with ui.row().classes('w-full gap-2'):
-                create_evolution_chart(sorted_matches, 'boost_avg', 'Boost Médio', CHART_COLORS['warning'])
-
-    def _update_comparison(self, matches: list) -> None:
-        self.comparison_container.clear()
-
-        pro_values = {
-            'boost_avg': 42, 'avg_speed': 1600, 'time_supersonic': 35,
-            'avg_distance_to_ball': 95
-        }
-
-        stats_to_compare = [
-            ("Boost Médio", "boost_avg", "pads", COLORS['warning'], 'bolt'),
-            ("Velocidade", "avg_speed", "u/s", COLORS['primary'], 'speed'),
-            ("Tempo Supersônico", "time_supersonic", "s", COLORS['cyan'], 'rocket_launch'),
-            ("Dist. Bola", "avg_distance_to_ball", "m", COLORS['accent'], 'gps_fixed'),
-        ]
-
-        latest = matches[0] if matches else {}
-
-        with self.comparison_container:
-            for label, stat_key, unit, color, icon_name in stats_to_compare:
-                my_val = latest.get(stat_key, 0) or 0
-                pro_val = pro_values.get(stat_key, 50)
-                pct = min(1.0, (my_val / pro_val * 100)) if pro_val > 0 else 0
-
-                if my_val >= pro_val:
-                    dot_color = COLORS['success']
-                    status_text = "Acima"
-                elif my_val >= pro_val * 0.8:
-                    dot_color = COLORS['warning']
-                    status_text = "Próximo"
-                else:
-                    dot_color = COLORS['error']
-                    status_text = "Abaixo"
-
-                with ui.card().classes('w-full').style(_surface_style('padding: 10px 12px;')):
-                    with ui.row().classes('w-full items-center gap-2'):
-                        ui.icon(icon_name, size='12px').classes('text-white').style(
-                            f'background: {color}; border-radius: 5px; '
-                            f'width: 24px; height: 24px; display: flex; align-items: center; '
-                            f'justify-content: center;'
-                        )
-                        with ui.column().classes('flex-1 gap-0'):
-                            ui.label(label).classes('text-xs font-semibold').style(f'color: {COLORS["text"]}')
-                            ui.label(status_text).classes('text-xs').style(f'color: {dot_color}')
-                        with ui.column().classes('items-end gap-0'):
-                            ui.label(f"{my_val:.0f}").classes('text-sm font-bold').style(f'color: {COLORS["text"]}')
-                            ui.label(f"{unit} (pro: {pro_val:.0f})").classes('text-xs').style(f'color: {COLORS["text_muted"]}')
-
-                    ui.linear_progress(value=pct).style(
-                        f'background: {COLORS["surface"]};'
-                    ).props(f'color={color}')
-
-    def _update_tips(self) -> None:
-        self.tips_container.clear()
-
-        real_tips = self._get_real_tips()
-
-        if not real_tips:
-            with self.tips_container:
-                with ui.card().classes('w-full').style(_surface_style('padding: 8px 10px;')):
-                    with ui.row().classes('items-center gap-2'):
-                        ui.icon('info', size='14px').style(f'color: {COLORS["text_muted"]}')
-                        with ui.column().classes('flex-1 gap-0'):
-                            ui.label('Sem dicas disponíveis').classes('text-xs font-semibold').style(f'color: {COLORS["text_muted"]}')
-                            ui.label('Jogue partidas e tenha uma baseline do pro para ver dicas personalizadas').classes('text-xs').style(f'color: {COLORS["text_muted"]}')
-            return
-
-        tip_icons = {
-            'boost': ('bolt', COLORS['warning']),
-            'speed': ('speed', COLORS['cyan']),
-            'position': ('gps_fixed', COLORS['success']),
-            'aerial': ('arrow_upward', COLORS['accent']),
-            'shot': ('gps_fixed', COLORS['success']),
-            'default': ('lightbulb', COLORS['primary']),
-        }
-
-        with self.tips_container:
-            for tip_text in real_tips[:3]:
-                icon_name, color = tip_icons['default']
-                tip_lower = tip_text.lower()
-
-                if 'boost' in tip_lower or 'pad' in tip_lower:
-                    icon_name, color = tip_icons['boost']
-                elif 'velocidade' in tip_lower or 'supersônico' in tip_lower or 'speed' in tip_lower:
-                    icon_name, color = tip_icons['speed']
-                elif 'distância' in tip_lower or 'posição' in tip_lower or 'terço' in tip_lower:
-                    icon_name, color = tip_icons['position']
-                elif 'ar' in tip_lower or 'aerial' in tip_lower or 'voo' in tip_lower:
-                    icon_name, color = tip_icons['aerial']
-                elif 'finalização' in tip_lower or 'gol' in tip_lower or 'shot' in tip_lower:
-                    icon_name, color = tip_icons['shot']
-
-                title = tip_text[:45] + "..." if len(tip_text) > 45 else tip_text
-                desc = tip_text if len(tip_text) > 45 else ""
-
-                with ui.card().classes('w-full').style(_surface_style('padding: 8px 10px;')):
-                    with ui.row().classes('items-center gap-2'):
-                        ui.icon(icon_name, size='14px').style(
-                            f'background: {color}15; color: {color}; border-radius: 6px; '
-                            f'width: 28px; height: 28px; display: flex; align-items: center; '
-                            f'justify-content: center;'
-                        )
-                        with ui.column().classes('flex-1 gap-0'):
-                            ui.label(title).classes('text-xs font-semibold').style(f'color: {COLORS["text"]}')
-                            if desc:
-                                ui.label(desc).classes('text-xs').style(f'color: {COLORS["text_muted"]}')
-
-    def _update_table(self, matches: list) -> None:
-        self.table_container.clear()
-
-        if not matches:
-            return
-
-        columns = [
-            {'name': 'date', 'label': 'DATA', 'field': 'date', 'align': 'left'},
-            {'name': 'result', 'label': 'RESULTADO', 'field': 'result', 'align': 'left'},
-            {'name': 'gas', 'label': 'G/A/S', 'field': 'gas', 'align': 'left'},
-            {'name': 'score', 'label': 'SCORE', 'field': 'score', 'align': 'left'},
-            {'name': 'prox', 'label': 'PROXIMIDADE', 'field': 'prox', 'align': 'left'},
-        ]
-
-        rows = []
-        for match in matches[:8]:
-            result = match.get('result', '')
-            result_label = "Vitória" if result == 'win' else "Derrota"
-            prox = match.get('proximity_score', 0) or 0
-            rows.append({
-                'date': str(match.get('date', ''))[:10],
-                'result': result_label,
-                'gas': f"{match.get('goals', 0)} / {match.get('assists', 0)} / {match.get('saves', 0)}",
-                'score': str(match.get('score', 0)),
-                'prox': f"{prox:.0f}%",
-            })
-
-        with self.table_container:
-            ui.table(columns=columns, rows=rows).style(
-                f'background: transparent; color: {COLORS["text"]};'
-            ).props('dark flat dense')
-
-    def _get_real_tips(self) -> List[str]:
-        if not self.comparer:
-            return []
-        try:
-            matches = self.db.get_matches(limit=1)
-            if not matches:
-                return []
-            latest = matches[0]
-            playlist = latest.get('playlist', 'ranked-doubles')
-            pro_name = self.config.get('pro_to_study', 'Zen')
-            baseline_data = self.db.get_baseline(playlist, pro_name)
-            if not baseline_data:
-                return []
-            baseline = baseline_data.get('averages', {})
-            if not baseline:
-                return []
-            player_stats = {
-                'boost_avg': latest.get('boost_avg', 0),
-                'time_zero_boost': latest.get('time_zero_boost', 0),
-                'big_pads': latest.get('big_pads', 0),
-                'small_pads': latest.get('small_pads', 0),
-                'avg_distance_to_ball': latest.get('avg_distance_to_ball', 0),
-                'avg_speed': latest.get('avg_speed', 0),
-                'time_supersonic': latest.get('time_supersonic', 0),
-                'shooting_pct': latest.get('shooting_pct', 0),
-                'goals': latest.get('goals', 0),
-                'assists': latest.get('assists', 0),
-                'saves': latest.get('saves', 0),
-                'score': latest.get('score', 0),
-            }
-            comparison = self.comparer.compare(player_stats, baseline)
-            return comparison.get('tips', [])
-        except Exception as e:
-            print(f"Erro ao buscar dicas reais: {e}")
-            return []
-
-    # ── PUBLIC API ─────────────────────────────────────────────────────────
+                # Update timeline
+                self._update_timeline(matches)
+        except Exception:
+            pass
 
     def update_status(self, is_monitoring: bool) -> None:
-        self.status_label.text = "Monitorando..." if is_monitoring else "Parado"
-        self.status_dot.style(
-            f'width: 7px; height: 7px; border-radius: 4px; '
-            f'background: {COLORS["success"] if is_monitoring else COLORS["error"]};'
-        )
+        pass
 
     def refresh(self) -> None:
         self._refresh_data()

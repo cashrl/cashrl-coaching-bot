@@ -26,6 +26,7 @@ from bot.watcher import ReplayWatcher
 from bot.uploader import BallchasingUploader
 from bot.analyzer import ReplayAnalyzer
 from bot.comparer import ProComparer
+from bot.ai_coach import create_coach, AICoach
 from dashboard.ui import Dashboard
 
 
@@ -39,6 +40,7 @@ class RLBotPro:
         self.watcher: Optional[ReplayWatcher] = None
         self.dashboard: Optional[Dashboard] = None
         self.comparer: Optional[ProComparer] = None
+        self.ai_coach: Optional[AICoach] = None
         self._watcher_thread: Optional[threading.Thread] = None
 
     def load_config(self) -> bool:
@@ -127,6 +129,22 @@ class RLBotPro:
             print(f"Erro ao inicializar comparador: {e}")
             return False
 
+    def init_ai_coach(self) -> bool:
+        """
+        Inicializa o coach de IA (NVIDIA NIM).
+
+        Returns:
+            True se inicializou com sucesso
+        """
+        api_key = self.config.get('nvidia_api_key', '')
+        self.ai_coach = create_coach(api_key)
+        if self.ai_coach:
+            print("AI Coach inicializado com sucesso!")
+            return True
+        else:
+            print("AI Coach não disponível (configure nvidia_api_key no config.json)")
+            return False
+
     def start_watcher(self) -> bool:
         """
         Inicia o watcher em uma thread separada.
@@ -190,7 +208,7 @@ class RLBotPro:
 
     def start_dashboard(self) -> None:
         """Inicia o dashboard NiceGUI."""
-        self.dashboard = Dashboard(self.db, self.config, self.comparer)
+        self.dashboard = Dashboard(self.db, self.config, self.comparer, self.ai_coach)
 
         @ui.page('/')
         def index():
@@ -229,10 +247,13 @@ class RLBotPro:
         # 3. Inicializar comparador
         self.init_comparer()
 
-        # 4. Iniciar watcher
+        # 4. Inicializar AI Coach
+        self.init_ai_coach()
+
+        # 5. Iniciar watcher
         self.start_watcher()
 
-        # 5. Iniciar dashboard
+        # 6. Iniciar dashboard
         print("\nIniciando dashboard...")
         print("Janela nativa será aberta automaticamente.")
         print("Para fechar, feche a janela do aplicativo.\n")
