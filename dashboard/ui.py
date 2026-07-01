@@ -165,12 +165,12 @@ class Dashboard:
                 )
 
         self.page_containers = []
+        self.page_built = [False, False, False, False]
         with self.main_area:
             for _ in range(4):
                 container = ui.column().classes('w-full')
                 self.page_containers.append(container)
 
-        self._build_page_content()
         self._show_page(0)
 
     def _global_css(self) -> str:
@@ -269,13 +269,9 @@ class Dashboard:
             # Nav items
             for i, (icon, label) in enumerate(self.NAV_ITEMS):
                 is_active = (i == self.current_page)
-                btn = (
-                    ui.button(icon=icon)
-                    .style(nav_item_style(is_active))
-                    .props('flat')
-                )
+                with ui.button(icon=icon).style(nav_item_style(is_active)).props('flat') as btn:
+                    ui.tooltip(label).classes('text-xs')
                 btn.on_click(lambda e, idx=i: self._on_nav(idx))
-                ui.tooltip(label).classes('text-xs')
                 self.nav_buttons.append((btn, i))
                 if i == 2:
                     ui.space().style('height: 8px;')
@@ -283,13 +279,9 @@ class Dashboard:
             ui.space()
 
             # Settings (below)
-            settings_btn = (
-                ui.button(icon='settings')
-                .style(nav_item_style(self.current_page == 6))
-                .props('flat')
-            )
+            with ui.button(icon='settings').style(nav_item_style(self.current_page == 6)).props('flat') as settings_btn:
+                ui.tooltip('Settings').classes('text-xs')
             settings_btn.on_click(lambda e: self._on_nav(6))
-            ui.tooltip('Settings').classes('text-xs')
 
             ui.space().style('height: 8px;')
 
@@ -312,6 +304,16 @@ class Dashboard:
     def _show_page(self, index: int) -> None:
         for i, container in enumerate(self.page_containers):
             container.set_visibility(i == index)
+        if not self.page_built[index]:
+            self.page_built[index] = True
+            builders = [
+                self._build_dashboard_page,
+                self._build_replay_analysis_page,
+                self._build_match_history_page,
+                self._build_settings_page,
+            ]
+            with self.page_containers[index]:
+                builders[index]()
 
     def _build_page_content(self) -> None:
         with self.page_containers[0]:
