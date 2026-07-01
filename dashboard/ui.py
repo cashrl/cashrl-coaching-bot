@@ -603,6 +603,7 @@ class Dashboard:
                     f'background: {C["surface_cont"]}; border: 1px solid rgba(255,255,255,0.1); '
                     f'border-radius: 16px; padding: 12px 16px;'
                 ).props('borderless dense')
+                self.chat_input.on('keydown.enter', self._send_chat)
                 ui.button(icon='send').style(
                     f'color: {C["primary"]}; background: transparent; border: none;'
                 ).on_click(self._send_chat)
@@ -916,6 +917,7 @@ class Dashboard:
                 f'padding: 16px; border-top: 1px solid rgba(255,255,255,0.05);'
             ):
                 self.analysis_input = ui.input(placeholder='Pergunte sobre sua gameplay...').classes('flex-1').props('borderless dense')
+                self.analysis_input.on('keydown.enter', self._send_analysis_chat)
                 ui.button(icon='send').style(f'color: {C["primary"]};').on_click(self._send_analysis_chat)
 
     def _send_analysis_chat(self) -> None:
