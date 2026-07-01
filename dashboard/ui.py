@@ -308,7 +308,7 @@ class Dashboard:
         self._build_top_bar('Dashboard', 'Acompanhe suas estatísticas e evolução')
         self._build_hero_stats()
         ui.space().style('height: 12px;')
-        self._build_pro_comparison_section()
+        self._build_ai_coach_panel()
         ui.space().style('height: 12px;')
         self._build_performance_timeline()
         ui.space().style('height: 12px;')
@@ -357,7 +357,6 @@ class Dashboard:
             self._build_player_card()
             self._build_session_card()
             self._build_winrate_card()
-            self._build_proximity_card()
 
     def _build_player_card(self) -> None:
         with ui.card().classes('flex-1 fade-in').style(glass('padding: 20px; border-radius: 24px;')):
@@ -432,109 +431,6 @@ class Dashboard:
 
                 # SVG ring chart
                 ui.html(self._svg_ring(65, 80, C['tertiary']))
-
-    def _build_proximity_card(self) -> None:
-        with ui.card().classes('flex-1 fade-in').style(
-            glass(f'padding: 20px; border-color: rgba(173,198,255,0.2); animation-delay: 0.15s;')
-        ):
-            with ui.row().classes('w-full items-center justify-between'):
-                with ui.column().classes('gap-0'):
-                    ui.label('PROXIMITY SCORE').style(
-                        label_caps(f'color: {C["text_var"]}; font-size: 10px;')
-                    )
-                    ui.label('72%').style(
-                        f'font-size: 32px; font-weight: 900; color: {C["primary"]}; line-height: 1.2;'
-                    )
-
-                ui.html(
-                    f'<div style="{icon_circle(40, "rgba(173,198,255,0.2)")}">'
-                    f'<span class="material-symbols-outlined" style="color:{C["primary"]};">psychology</span>'
-                    f'</div>'
-                )
-
-            ui.space().style('height: 8px;')
-            with ui.row().classes('w-full justify-between'):
-                ui.label('VS ZEN').style(f'font-size: 10px; color: {C["text_dim"]};')
-                ui.label('+2% week').style(stat_mono(f'font-size: 10px; color: {C["primary"]};'))
-
-            ui.linear_progress(value=0.72).style(
-                f'height: 4px; border-radius: 2px; background: rgba(255,255,255,0.05); margin-top: 8px;'
-            ).props(f'color="{C["primary_container"]}"')
-
-    # ── PRO COMPARISON (DASHBOARD CENTER) ───────────────────────────────────
-
-    def _build_pro_comparison_section(self) -> None:
-        with ui.row().classes('w-full gap-4'):
-            self._build_radar_comparison()
-            self._build_ai_coach_panel()
-
-    def _build_radar_comparison(self) -> None:
-        with ui.card().classes('flex-1 radar-bg fade-in').style(
-            glass('padding: 32px; overflow: hidden; position: relative; animation-delay: 0.2s;')
-        ):
-            # Background glow
-            ui.html(
-                '<div style="position:absolute; top:-80px; right:-80px; width:256px; height:256px; '
-                f'background: rgba(173,198,255,0.05); border-radius: 50%; filter: blur(80px); pointer-events:none;"></div>'
-            )
-
-            with ui.row().classes('w-full gap-10'):
-                # Left: circular score
-                with ui.column().classes('items-center justify-center flex-1'):
-                    ui.html(self._svg_large_ring(72, 128, C['primary']))
-                    ui.space().style('height: 24px;')
-
-                    with ui.row().classes('items-center gap-6'):
-                        with ui.row().classes('items-center gap-2'):
-                            ui.html(f'<div style="width:12px; height:12px; border-radius:50%; background:{C["primary"]}; box-shadow: 0 0 8px rgba(173,198,255,1);"></div>')
-                            ui.label('YOU').style(f'font-size: 11px; font-weight: 700;')
-                        with ui.row().classes('items-center gap-2'):
-                            ui.html(f'<div style="width:12px; height:12px; border-radius:50%; border: 2px solid {C["tertiary"]};"></div>')
-                            ui.label('ZEN').style(f'font-size: 11px; font-weight: 700; color: {C["text_var"]};')
-
-                # Right: metrics bars
-                with ui.column().classes('flex-1 justify-center gap-6'):
-                    ui.label('Professional Comparison').style(
-                        f'font-size: 22px; font-weight: 700; color: {C["text"]};'
-                    )
-                    ui.label('Sua gameplay em comparação direta com o melhor jogador do mundo.').style(
-                        f'font-size: 14px; color: {C["text_var"]}; line-height: 1.5;'
-                    )
-
-                    ui.space().style('height: 8px;')
-
-                    metrics = [
-                        ('Boost Management', 84, 92),
-                        ('Positioning', 61, 98),
-                        ('Defense', 91, 89),
-                        ('Speed', 78, 95),
-                        ('Shooting', 65, 88),
-                    ]
-                    for label, you, pro in metrics:
-                        self._build_metric_bar(label, you, pro)
-
-                    ui.space().style('height: 12px;')
-
-                    ui.button('See detailed analysis →').style(
-                        f'background: {C["primary_container"]}; color: {C["on_primary"]}; '
-                        f'border-radius: 16px; padding: 12px 24px; font-weight: 700; '
-                        f'width: 100%; text-transform: none; box-shadow: 0 0 25px rgba(173,198,255,0.2);'
-                    ).on_click(lambda: self._on_nav(3))
-
-    def _build_metric_bar(self, label: str, you: int, pro: int) -> None:
-        with ui.column().classes('w-full gap-1'):
-            with ui.row().classes('w-full justify-between'):
-                ui.label(label).style(f'font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em;')
-                ui.label(f'{you} / {pro}').style(
-                    stat_mono(f'font-size: 12px; color: {C["primary"]};')
-                )
-            with ui.row().classes('w-full').style('height: 6px;'):
-                ui.html(
-                    f'<div style="width: 100%; height: 6px; background: rgba(255,255,255,0.05); '
-                    f'border-radius: 3px; overflow: hidden; display: flex;">'
-                    f'<div style="width: {you}%; height: 100%; background: {C["primary"]}; border-radius: 3px;"></div>'
-                    f'</div>'
-                )
 
     # ── AI COACH PANEL ──────────────────────────────────────────────────────
 
