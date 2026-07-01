@@ -805,9 +805,9 @@ class Dashboard:
             self._chat_msg('ai', 'AI Coach não disponível. Configure <b>nvidia_api_key</b> no config.json.', container=self.analysis_chat)
 
     def _load_replay_list(self) -> None:
-        replay_folder = self.config.get('replay_folder', os.path.join(
+        replay_folder = self.config.get('replays_folder', self.config.get('replay_folder', os.path.join(
             os.path.expanduser('~'), 'Documents', 'My Games', 'Rocket League', 'TAGame', 'Demos'
-        ))
+        )))
         if not os.path.exists(replay_folder):
             return
 
@@ -831,7 +831,7 @@ class Dashboard:
     def _on_replay_select(self, e) -> None:
         if not e.value:
             return
-        replay_folder = self.config.get('replay_folder', os.path.join(
+        replay_folder = self.config.get('replays_folder', self.config.get('replay_folder', os.path.join(
             os.path.expanduser('~'), 'Documents', 'My Games', 'Rocket League', 'TAGame', 'Demos'
         ))
         replay_path = os.path.join(replay_folder, e.value)
