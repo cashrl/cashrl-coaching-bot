@@ -863,7 +863,7 @@ class Dashboard:
                 tmp.write(e.content.read())
                 tmp.close()
                 self._analyze_replay(tmp.name)
-        ui.file_upload(
+        ui.upload(
             on_upload=on_upload, multiple=False, auto_upload=True,
             label='Selecionar arquivo .replay', accept='.replay'
         ).classes('w-full')
