@@ -159,6 +159,7 @@ class Dashboard:
         self.current_page = 0
         self.nav_buttons: list = []
         self.main_area = None
+        self._current_player_name = config.get('rl_nickname', config.get('player_name', ''))
 
     # ── BUILD ───────────────────────────────────────────────────────────────
 
@@ -1462,7 +1463,9 @@ class Dashboard:
             ui.label('Analisando replay...').style(f'color: {C["text_var"]}; margin-top: 8px;')
 
         import asyncio
-        analyzer = LocalReplayAnalyzer(self.config.get('rl_nickname', self.config.get('player_name', '')))
+        # Usar player_name do resultado anterior se disponível (para manter consistência)
+        current_player = getattr(self, '_current_player_name', self.config.get('rl_nickname', self.config.get('player_name', '')))
+        analyzer = LocalReplayAnalyzer(current_player)
         container = self.analysis_container
         ai_coach = self.ai_coach
         show_results = self._show_analysis_results
@@ -1478,6 +1481,9 @@ class Dashboard:
                     self._last_replay_path = replay_path_ref
                     self._last_analyzer = analyzer
                     
+                    # Atualizar player_name selecionado
+                    self._current_player_name = result.get('player_name', current_player)
+                    
                     # Limpar e recriar conteúdo dentro do container
                     container.clear()
                     with container:
@@ -1490,7 +1496,7 @@ class Dashboard:
                         # Aviso de fallback se nome não encontrado
                         if result.get("fallback_used"):
                             fallback_name = result.get("fallback_player_name", "")
-                            configured_name = self.config.get('rl_nickname', self.config.get('player_name', ''))
+                            configured_name = self._current_player_name
                             with ui.card().classes('w-full fade-in').style(
                                 'background: rgba(255, 193, 7, 0.1); border: 1px solid rgba(255, 193, 7, 0.3); '
                                 'border-radius: 8px; padding: 12px 16px;'
@@ -1561,6 +1567,12 @@ class Dashboard:
             return
         
         player_index = int(e.value)
+        # Atualizar player_name selecionado antes de re-analisar
+        all_players = self._last_analysis_result.get('all_players', []) if hasattr(self, '_last_analysis_result') else []
+        for p in all_players:
+            if p.get('index') == player_index:
+                self._current_player_name = p.get('name', self._current_player_name)
+                break
         self._analyze_replay(self._last_replay_path, player_index)
 
     def _show_analysis_results(self, result: Dict[str, Any]) -> None:
