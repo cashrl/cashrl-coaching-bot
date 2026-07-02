@@ -1267,7 +1267,8 @@ class Dashboard:
         team_one = result.get("team_one", [])
         team_zero_score = result.get("team_zero_score", 0)
         team_one_score = result.get("team_one_score", 0)
-        player_name = result.get("player_name", "")
+        # Usar _current_player_name para manter consistência com o dropdown
+        player_name = getattr(self, '_current_player_name', result.get("player_name", ""))
         game_mode = result.get("game_mode", "2v2")
         
         # Se não houver dados de time, não mostrar o cabeçalho
@@ -1585,7 +1586,8 @@ class Dashboard:
         team_zero = result.get('team_zero_score', 0)
         team_one = result.get('team_one_score', 0)
         duration = result.get('duration_seconds', 0)
-        player_name = result.get('player_name', self.config.get('player_name', 'You'))
+        # Usar _current_player_name para manter consistência com o dropdown
+        player_name = getattr(self, '_current_player_name', result.get('player_name', self.config.get('player_name', 'You')))
         avg_dist = result.get('avg_distance_to_ball', 0)
         time_near = result.get('time_near_ball_pct', 0)
         time_off = result.get('time_offensive_pct', 0)
