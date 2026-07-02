@@ -1477,6 +1477,10 @@ class Dashboard:
             try:
                 result = await asyncio.to_thread(analyzer.analyze_replay, replay_path, player_index)
                 
+                # Verificar se o container ainda existe antes de usar
+                if not container or not container.is_valid():
+                    return
+                
                 if result:
                     self._last_analysis_result = result
                     self._last_replay_path = replay_path_ref
@@ -1522,15 +1526,17 @@ class Dashboard:
                             if ai_response:
                                 self._show_ai_analysis(ai_response)
                 else:
+                    if container and container.is_valid():
+                        container.clear()
+                        with container:
+                            ui.icon('warning', size='48px').style(f'color: {C["warning"]};')
+                            ui.label('Replay não analisado').style(f'color: {C["warning"]}; margin-top: 8px;')
+            except Exception as ex:
+                if container and container.is_valid():
                     container.clear()
                     with container:
-                        ui.icon('warning', size='48px').style(f'color: {C["warning"]};')
-                        ui.label('Replay não analisado').style(f'color: {C["warning"]}; margin-top: 8px;')
-            except Exception as ex:
-                container.clear()
-                with container:
-                    ui.icon('error', size='48px').style(f'color: {C["error"]};')
-                    ui.label(str(ex)).style(f'color: {C["error"]}; margin-top: 8px; font-size: 12px;')
+                        ui.icon('error', size='48px').style(f'color: {C["error"]};')
+                        ui.label(str(ex)).style(f'color: {C["error"]}; margin-top: 8px; font-size: 12px;')
 
         asyncio.ensure_future(_do_analysis())
 
@@ -1698,6 +1704,9 @@ class Dashboard:
                 container = self._analysis_result_container
                 async def _load_analysis():
                     analysis = await asyncio.to_thread(coach.generate_match_analysis, result)
+                    # Verificar se o container ainda existe antes de usar
+                    if not container or not container.is_valid():
+                        return
                     container.clear()
                     with container:
                         with ui.card().classes('w-full fade-in').style(
@@ -2139,7 +2148,8 @@ class Dashboard:
                     recap = await asyncio.to_thread(
                         self.ai_coach.generate_match_recap, last_result, comparison
                     )
-                    if recap:
+                    # Verificar se o container ainda existe antes de usar
+                    if recap_card and recap_card.is_valid() and recap:
                         recap_card.clear()
                         with recap_card:
                             with ui.row().classes('items-start gap-3'):
@@ -2213,21 +2223,23 @@ class Dashboard:
                             if exp:
                                 explanations.append((m["label"], exp))
 
-                        expl_container.clear()
-                        with expl_container:
-                            if explanations:
-                                for lbl, exp in explanations:
-                                    with ui.row().classes('items-start gap-3').style('margin-bottom: 8px;'):
-                                        ui.label(f'• {lbl}:').style(
-                                            f'font-size: 13px; font-weight: 600; color: {C["text"]};'
-                                        )
-                                        ui.label(exp).style(
-                                            f'font-size: 13px; color: {C["text_var"]};'
-                                        )
-                            else:
-                                ui.label('Nenhuma anomalia significativa detectada.').style(
-                                    f'font-size: 13px; color: {C["text_var"]};'
-                                )
+                        # Verificar se o container ainda existe antes de usar
+                        if expl_container and expl_container.is_valid():
+                            expl_container.clear()
+                            with expl_container:
+                                if explanations:
+                                    for lbl, exp in explanations:
+                                        with ui.row().classes('items-start gap-3').style('margin-bottom: 8px;'):
+                                            ui.label(f'• {lbl}:').style(
+                                                f'font-size: 13px; font-weight: 600; color: {C["text"]};'
+                                            )
+                                            ui.label(exp).style(
+                                                f'font-size: 13px; color: {C["text_var"]};'
+                                            )
+                                else:
+                                    ui.label('Nenhuma anomalia significativa detectada.').style(
+                                        f'font-size: 13px; color: {C["text_var"]};'
+                                    )
 
                     with ui.row().classes('items-center gap-2'):
                         expl_container = ui.column().classes('w-full')
