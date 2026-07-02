@@ -1267,8 +1267,9 @@ class Dashboard:
         team_one = result.get("team_one", [])
         team_zero_score = result.get("team_zero_score", 0)
         team_one_score = result.get("team_one_score", 0)
-        # Usar _current_player_name para manter consistência com o dropdown
-        player_name = getattr(self, '_current_player_name', result.get("player_name", ""))
+        # Usar _highlight_player_index para determinar qual jogador destacar
+        # Isso garante consistência com o dropdown
+        highlight_index = result.get("_highlight_player_index")
         game_mode = result.get("game_mode", "2v2")
         
         # Se não houver dados de time, não mostrar o cabeçalho
@@ -1292,9 +1293,15 @@ class Dashboard:
                             f'font-size: 12px; font-weight: 700; color: #FF8C00; letter-spacing: 0.1em;'
                         )
                     with ui.column().classes('items-center gap-1'):
-                        for player in team_zero[:team_size]:
+                        # Mapear index do time_zero para os índices de all_players
+                        all_players = result.get("all_players", [])
+                        team_zero_indices = [p["index"] for p in all_players if p.get("team") == 0]
+                        
+                        for i, player in enumerate(team_zero[:team_size]):
                             name = truncate_name(player.get("name", "Jogador desconhecido"))
-                            is_main = player.get("name", "").lower() == player_name.lower()
+                            # Determinar se este jogador é o selecionado pelo índice
+                            player_global_idx = team_zero_indices[i] if i < len(team_zero_indices) else -1
+                            is_main = highlight_index is not None and player_global_idx == highlight_index
                             style = (
                                 f'font-size: {"14px" if is_main else "12px"}; '
                                 f'font-weight: {"700" if is_main else "500"}; '
@@ -1324,9 +1331,15 @@ class Dashboard:
                             f'font-size: 12px; font-weight: 700; color: #0078D4; letter-spacing: 0.1em;'
                         )
                     with ui.column().classes('items-center gap-1'):
-                        for player in team_one[:team_size]:
+                        # Mapear index do team_one para os índices de all_players
+                        all_players = result.get("all_players", [])
+                        team_one_indices = [p["index"] for p in all_players if p.get("team") == 1]
+                        
+                        for i, player in enumerate(team_one[:team_size]):
                             name = truncate_name(player.get("name", "Jogador desconhecido"))
-                            is_main = player.get("name", "").lower() == player_name.lower()
+                            # Determinar se este jogador é o selecionado pelo índice
+                            player_global_idx = team_one_indices[i] if i < len(team_one_indices) else -1
+                            is_main = highlight_index is not None and player_global_idx == highlight_index
                             style = (
                                 f'font-size: {"14px" if is_main else "12px"}; '
                                 f'font-weight: {"700" if is_main else "500"}; '
@@ -1472,6 +1485,8 @@ class Dashboard:
         show_results = self._show_analysis_results
         show_player_selector = self._show_player_selector
         replay_path_ref = replay_path
+        # Guardar o player_index selecionado para usar no destaque
+        selected_player_index = player_index
 
         async def _do_analysis():
             try:
@@ -1486,8 +1501,12 @@ class Dashboard:
                     self._last_replay_path = replay_path_ref
                     self._last_analyzer = analyzer
                     
-                    # Atualizar player_name selecionado
-                    self._current_player_name = result.get('player_name', current_player)
+                    # NÃO sobrescrever _current_player_name com o resultado do analyzer
+                    # Manter o que foi selecionado no dropdown como fonte de verdade
+                    
+                    # Adicionar selected_player_index ao resultado para uso no team header
+                    if selected_player_index is not None:
+                        result['_highlight_player_index'] = selected_player_index
                     
                     # Limpar e recriar conteúdo dentro do container
                     container.clear()
