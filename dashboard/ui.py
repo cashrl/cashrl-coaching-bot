@@ -746,8 +746,6 @@ class Dashboard:
         self._build_streak_warning()
         self._build_hero_stats()
         ui.space().style('height: 12px;')
-        self._build_ai_coach_panel()
-        ui.space().style('height: 12px;')
         self._build_performance_timeline()
         ui.space().style('height: 12px;')
         self._build_match_history_preview()
@@ -917,103 +915,6 @@ class Dashboard:
                 # SVG ring chart
                 ui.html(self._svg_ring(65, 80, C['tertiary']))
 
-    # ── AI COACH PANEL ──────────────────────────────────────────────────────
-
-    def _build_ai_coach_panel(self) -> None:
-        with ui.card().classes('w-96 fade-in').style(
-            glass('padding: 0; overflow: hidden; display: flex; flex-direction: column; height: 500px; animation-delay: 0.25s;')
-        ):
-            # Header
-            with ui.row().classes('w-full items-center justify-between').style(
-                f'padding: 16px 20px; border-bottom: 1px solid rgba(255,255,255,0.05); background: rgba(255,255,255,0.02);'
-            ):
-                with ui.row().classes('items-center gap-3'):
-                    ui.html(
-                        f'<div style="width:40px; height:40px; border-radius:12px; '
-                        f'background: linear-gradient(135deg, {C["tertiary_cont"]}, {C["secondary_container"]}); '
-                        f'display:flex; align-items:center; justify-content:center;" class="animate-pulse-slow">'
-                        f'<span class="material-symbols-outlined" style="color:white; font-variation-settings:\'FILL\' 1;">auto_awesome</span>'
-                        f'</div>'
-                    )
-                    with ui.column().classes('gap-0'):
-                        ui.label('AI Coach').style(f'font-size: 14px; font-weight: 700; color: {C["text"]};')
-                        ui.label('POWERED BY NVIDIA NIM').style(label_caps(f'color: {C["text_var"]}; opacity: 0.6; font-size: 9px;'))
-
-                ui.html(
-                    f'<div style="width:8px; height:8px; border-radius:50%; background:{C["tertiary"]}; '
-                    f'animation: ping-glow 2s infinite;" class="ping-glow"></div>'
-                )
-
-            # Messages
-            self.chat_messages = ui.column().classes('w-full').style(
-                f'padding: 16px; flex: 1 1 0; overflow-y: auto; min-height: 0;'
-            )
-            with self.chat_messages:
-                self._chat_msg('ai', 'Welcome back, <b>cash</b>. I\'ve analyzed your last 5 matches. Ready for the breakdown?')
-
-            # Input
-            with ui.row().classes('w-full items-center gap-2').style(
-                f'padding: 16px; border-top: 1px solid rgba(255,255,255,0.05);'
-            ):
-                self.chat_input = ui.input(placeholder='Pergunte ao coach...').classes('flex-1').style(
-                    f'background: {C["surface_cont"]}; border: 1px solid rgba(255,255,255,0.1); '
-                    f'border-radius: 16px; padding: 12px 16px;'
-                ).props('borderless dense')
-                self.chat_input.on('keydown.enter', self._send_chat)
-                ui.button(icon='send').style(
-                    f'color: {C["primary"]}; background: transparent; border: none;'
-                ).on_click(self._send_chat)
-
-    def _chat_msg(self, sender: str, message: str, container=None) -> None:
-        is_ai = sender == 'ai'
-        target = container
-        if target is None:
-            return
-        with target:
-            with ui.card().classes('w-full').style(
-                f'background: {"rgba(50,53,60,0.8)" if is_ai else "rgba(173,198,255,0.15)"}; '
-                f'border: 1px solid {"rgba(255,255,255,0.05)" if is_ai else "rgba(173,198,255,0.2)"}; '
-                f'border-radius: {"16px 16px 16px 4px" if is_ai else "16px 16px 4px 16px"}; '
-                f'padding: 12px 16px; margin-bottom: 8px; '
-                f'{"max-width: 85%;" if is_ai else "max-width: 85%; margin-left: auto;"}'
-            ):
-                ui.markdown(message).style(
-                    f'font-size: 14px; color: {C["text"]}; margin: 0; line-height: 1.5;'
-                )
-
-    def _send_chat(self) -> None:
-        msg = self.chat_input.value
-        if not msg:
-            return
-        self._chat_msg('user', msg)
-        self.chat_input.value = ''
-
-        if self.ai_coach:
-            import asyncio
-            coach = self.ai_coach
-            context = self._get_chat_context()
-            async def _call_coach():
-                response = await asyncio.to_thread(coach.chat, msg, context)
-                self._chat_msg('ai', response or 'Erro ao processar mensagem.')
-            asyncio.ensure_future(_call_coach())
-        else:
-            self._chat_msg('ai', 'AI Coach não disponível. Configure <b>nvidia_api_key</b> no config.json.')
-
-    def _get_chat_context(self) -> str:
-        try:
-            matches = self.db.get_matches(limit=5)
-            if not matches:
-                return 'Nenhuma partida registrada.'
-            latest = matches[0]
-            return (
-                f"Última partida: {latest.get('result', 'N/A')}\n"
-                f"Boost médio: {latest.get('boost_avg', 0):.1f}\n"
-                f"Velocidade: {latest.get('avg_speed', 0):.0f} u/s\n"
-                f"Gols: {latest.get('goals', 0)}"
-            )
-        except Exception:
-            return ''
-
     # ── STREAK / TILT WARNING ─────────────────────────────────────────────
 
     def _build_streak_warning(self) -> None:
@@ -1047,6 +948,23 @@ class Dashboard:
                     f'Performance caiu de {quality["before_avg"]}% para {quality["after_avg"]}% '
                     f'(-{quality["drop_pct"]}%). Considere fazer uma pausa.'
                 ).style(f'font-size: 12px; color: {C["text_dim"]}; margin-top: 4px;')
+
+    def _chat_msg(self, sender: str, message: str, container=None) -> None:
+        is_ai = sender == 'ai'
+        target = container
+        if target is None:
+            return
+        with target:
+            with ui.card().classes('w-full').style(
+                f'background: {"rgba(50,53,60,0.8)" if is_ai else "rgba(173,198,255,0.15)"}; '
+                f'border: 1px solid {"rgba(255,255,255,0.05)" if is_ai else "rgba(173,198,255,0.2)"}; '
+                f'border-radius: {"16px 16px 16px 4px" if is_ai else "16px 16px 4px 16px"}; '
+                f'padding: 12px 16px; margin-bottom: 8px; '
+                f'{"max-width: 85%;" if is_ai else "max-width: 85%; margin-left: auto;"}'
+            ):
+                ui.markdown(message).style(
+                    f'font-size: 14px; color: {C["text"]}; margin: 0; line-height: 1.5;'
+                )
 
     # ── PERFORMANCE TIMELINE ────────────────────────────────────────────────
 
