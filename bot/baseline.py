@@ -234,6 +234,270 @@ class BaselineSystem:
         return baselines
 
 
+# ══════════════════════════════════════════════════════════════════════════════
+# PRO COMPARISON — Médias profissionais, ranges alvo e cálculo de skill scores
+# ══════════════════════════════════════════════════════════════════════════════
+
+# Médias profissionais de referência (RLCS Grand Champion 3v3).
+# Baseadas em dados de replays coletados via Ballchasing.
+# Formato: {chave_metrica: valor_medio_profissional}
+# Nota: métricas de boost/velocidade são por minuto de jogo.
+PRO_AVERAGES: Dict[str, float] = {
+    "goals_per_min": 1.0,
+    "assists_per_min": 0.7,
+    "saves_per_min": 0.8,
+    "shots_per_min": 2.5,
+    "avg_speed": 1550,
+    "time_supersonic_pct": 17.0,
+    "boost_collected_per_min": 2100,
+    "boost_used_per_min": 1850,
+    "big_pads_per_min": 8,
+    "small_pads_per_min": 25,
+    "time_full_boost_pct": 7.0,
+    "time_zero_boost_pct": 6.0,
+    "time_boost_low_pct": 22.0,
+    "aerial_height_high_pct": 8.0,
+    "shot_speed_avg": 95,
+    "shot_speed_aerial_avg": 105,
+    "time_offensive_pct": 48.0,
+    "time_defensive_pct": 35.0,
+    "avg_distance_to_ball": 550,
+    "demos_per_min": 0.15,
+    "score_per_min": 150,
+}
+
+# Range alvo = meta ± tolerância. Usado para status "Dentro da Meta".
+TARGET_RANGES: Dict[str, Dict[str, float]] = {
+    "goals_per_min":           {"min": 0.6,  "max": 1.5},
+    "assists_per_min":         {"min": 0.4,  "max": 1.1},
+    "saves_per_min":           {"min": 0.4,  "max": 1.3},
+    "shots_per_min":           {"min": 1.5,  "max": 3.5},
+    "avg_speed":               {"min": 1400, "max": 1700},
+    "time_supersonic_pct":     {"min": 12.0, "max": 22.0},
+    "boost_collected_per_min": {"min": 1700, "max": 2500},
+    "boost_used_per_min":      {"min": 1500, "max": 2200},
+    "big_pads_per_min":        {"min": 5,    "max": 11},
+    "small_pads_per_min":      {"min": 18,   "max": 32},
+    "time_full_boost_pct":     {"min": 4.0,  "max": 10.0},
+    "time_zero_boost_pct":     {"min": 3.0,  "max": 9.0},
+    "time_boost_low_pct":      {"min": 15.0, "max": 30.0},
+    "aerial_height_high_pct":  {"min": 4.0,  "max": 12.0},
+    "shot_speed_avg":          {"min": 80,   "max": 110},
+    "shot_speed_aerial_avg":   {"min": 90,   "max": 120},
+    "time_offensive_pct":      {"min": 40.0, "max": 56.0},
+    "time_defensive_pct":      {"min": 28.0, "max": 42.0},
+    "avg_distance_to_ball":    {"min": 450,  "max": 650},
+    "demos_per_min":           {"min": 0.05, "max": 0.25},
+    "score_per_min":           {"min": 110,  "max": 200},
+}
+
+
+def get_target_range(metric_key: str) -> Optional[Dict[str, float]]:
+    """Retorna o range alvo (min/max) para uma métrica específica."""
+    return TARGET_RANGES.get(metric_key)
+
+
+def _classify_status(value: float, pro_avg: float,
+                     target_min: float, target_max: float) -> str:
+    """Classifica o status de um valor em relação ao alvo profissional."""
+    if value < target_min * 0.7:
+        return "muito_baixo"
+    if value < target_min:
+        return "abaixo"
+    if value > target_max * 1.3:
+        return "muito_alto"
+    if value > target_max:
+        return "acima"
+    return "dentro_meta"
+
+
+def compare_to_target(match_data: Dict[str, float]) -> List[Dict[str, Any]]:
+    """
+    Compara cada métrica da partida com o range alvo profissional.
+
+    Retorna lista de dicts:
+    [
+        {
+            "metric_key": "boost_collected_per_min",
+            "label": "Boost Coletado/min",
+            "value": 1920.0,
+            "pro_avg": 2100.0,
+            "target_min": 1700,
+            "target_max": 2500,
+            "unit": "uu/min",
+            "status": "abaixo"  # muito_baixo | abaixo | dentro_meta | acima | muito_alto
+        },
+        ...
+    ]
+    """
+    duration = match_data.get("duration_seconds", 300)
+    if duration <= 0:
+        duration = 300
+    minutes = duration / 60.0
+
+    raw_metrics = [
+        ("goals_per_min",           "Gols/min",              match_data.get("goals", 0) / minutes, "un"),
+        ("assists_per_min",         "Assistências/min",      match_data.get("assists", 0) / minutes, "un"),
+        ("saves_per_min",           "Defesas/min",           match_data.get("saves", 0) / minutes, "un"),
+        ("shots_per_min",           "Finalizações/min",      match_data.get("shots", 0) / minutes, "un"),
+        ("avg_speed",               "Velocidade Média",      match_data.get("avg_speed", 0), "u/s"),
+        ("time_supersonic_pct",     "Tempo Supersônico",     match_data.get("time_supersonic_pct", 0), "%"),
+        ("boost_collected_per_min", "Boost Coletado/min",    match_data.get("boost_collected", 0) / minutes, "uu/min"),
+        ("boost_used_per_min",      "Boost Usado/min",       match_data.get("boost_used", 0) / minutes, "uu/min"),
+        ("big_pads_per_min",        "Big Pads/min",          match_data.get("big_pads_collected", 0) / minutes, "un"),
+        ("small_pads_per_min",      "Small Pads/min",        match_data.get("small_pads_collected", 0) / minutes, "un"),
+        ("time_full_boost_pct",     "Tempo 100% Boost",      match_data.get("time_boost_100_pct", 0), "%"),
+        ("time_zero_boost_pct",     "Tempo 0% Boost",        match_data.get("time_boost_0_pct", 0), "%"),
+        ("time_boost_low_pct",      "Tempo <25% Boost",      match_data.get("time_boost_low_pct", 0), "%"),
+        ("aerial_height_high_pct",  "Aéreo Alto",            match_data.get("aerial_high_pct", 0), "%"),
+        ("shot_speed_avg",          "Vel. Finalização Média", match_data.get("shot_speed_avg", 0), "km/h"),
+        ("shot_speed_aerial_avg",   "Vel. Aérea Média",      match_data.get("shot_speed_aerial_avg", 0), "km/h"),
+        ("time_offensive_pct",      "Tempo Ataque",          match_data.get("time_offensive_pct", 0), "%"),
+        ("time_defensive_pct",      "Tempo Defesa",          match_data.get("time_defensive_pct", 0), "%"),
+        ("avg_distance_to_ball",    "Dist. à Bola",          match_data.get("avg_distance_to_ball", 0), "uu"),
+        ("demos_per_min",           "Demos/min",             match_data.get("demos_inflicted", 0) / minutes, "un"),
+        ("score_per_min",           "Score/min",             match_data.get("player_score", 0) / minutes, "pts"),
+    ]
+
+    results = []
+    for key, label, value, unit in raw_metrics:
+        pro_avg = PRO_AVERAGES.get(key, value)
+        rng = TARGET_RANGES.get(key)
+        if rng is None:
+            continue
+
+        status = _classify_status(value, pro_avg, rng["min"], rng["max"])
+
+        results.append({
+            "metric_key": key,
+            "label": label,
+            "value": round(value, 2),
+            "pro_avg": pro_avg,
+            "target_min": rng["min"],
+            "target_max": rng["max"],
+            "unit": unit,
+            "status": status,
+        })
+
+    return results
+
+
+def _skill_score(value: float, pro_avg: float, lower_is_better: bool = False) -> float:
+    """Converte um valor em score 0-100 (100 = igual ao profissional)."""
+    if pro_avg == 0:
+        return 50.0
+    if lower_is_better:
+        ratio = pro_avg / max(value, 0.01)
+    else:
+        ratio = value / pro_avg
+    score = max(0.0, min(100.0, ratio * 100.0))
+    return round(score, 1)
+
+
+def calculate_skill_scores(match_data: Dict[str, float]) -> Dict[str, float]:
+    """
+    Calcula os 4 scores de competência (0-100) com base nas métricas da partida.
+
+    - Movimentação: velocidade média + tempo supersônico + demos
+    - Competência Aérea: tempo aéreo alto + velocidade aérea
+    - Posicionamento de Campo: tempo ofensivo + tempo perto da bola + defesa
+    - Gestão de Boost: coleta + uso + big pads + tempo 100%
+    """
+    duration = match_data.get("duration_seconds", 300)
+    if duration <= 0:
+        duration = 300
+    minutes = duration / 60.0
+
+    # Movimentação
+    speed = _skill_score(match_data.get("avg_speed", 0), PRO_AVERAGES["avg_speed"])
+    supersonic = _skill_score(match_data.get("time_supersonic_pct", 0), PRO_AVERAGES["time_supersonic_pct"])
+    demos = _skill_score(match_data.get("demos_inflicted", 0) / minutes, PRO_AVERAGES["demos_per_min"])
+    movement = (speed * 0.5 + supersonic * 0.3 + demos * 0.2)
+
+    # Competência Aérea
+    aerial_high = _skill_score(match_data.get("aerial_high_pct", 0), PRO_AVERAGES["aerial_height_high_pct"])
+    shot_aerial = _skill_score(match_data.get("shot_speed_aerial_avg", 0), PRO_AVERAGES["shot_speed_aerial_avg"])
+    aerial = (aerial_high * 0.6 + shot_aerial * 0.4)
+
+    # Posicionamento de Campo
+    offensive = _skill_score(match_data.get("time_offensive_pct", 0), PRO_AVERAGES["time_offensive_pct"])
+    dist = _skill_score(match_data.get("avg_distance_to_ball", 999), PRO_AVERAGES["avg_distance_to_ball"])
+    defensive = _skill_score(match_data.get("time_defensive_pct", 0), PRO_AVERAGES["time_defensive_pct"])
+    positioning = (offensive * 0.4 + dist * 0.4 + defensive * 0.2)
+
+    # Gestão de Boost
+    collected = _skill_score(match_data.get("boost_collected", 0) / minutes, PRO_AVERAGES["boost_collected_per_min"])
+    big_pads = _skill_score(match_data.get("big_pads_collected", 0) / minutes, PRO_AVERAGES["big_pads_per_min"])
+    full_boost = _skill_score(match_data.get("time_boost_100_pct", 0), PRO_AVERAGES["time_full_boost_pct"])
+    zero_penalty = _skill_score(match_data.get("time_boost_0_pct", 0), PRO_AVERAGES["time_zero_boost_pct"], lower_is_better=True)
+    boost_mgmt = (collected * 0.3 + big_pads * 0.25 + full_boost * 0.25 + zero_penalty * 0.2)
+
+    return {
+        "movimentacao": round(movement, 1),
+        "competencia_aerea": round(aerial, 1),
+        "posicionamento_campo": round(positioning, 1),
+        "gestao_de_boost": round(boost_mgmt, 1),
+    }
+
+
+def calculate_composite_scores(match_data: Dict[str, float]) -> Dict[str, float]:
+    """
+    Calcula o score composto geral e por área, normalizado 0-100.
+    Peso: Movimentação 30%, Aéreo 25%, Posicionamento 25%, Boost 20%.
+    """
+    skills = calculate_skill_scores(match_data)
+    composite = (
+        skills["movimentacao"] * 0.30 +
+        skills["competencia_aerea"] * 0.25 +
+        skills["posicionamento_campo"] * 0.25 +
+        skills["gestao_de_boost"] * 0.20
+    )
+    return {
+        "movimentacao": skills["movimentacao"],
+        "competencia_aerea": skills["competencia_aerea"],
+        "posicionamento_campo": skills["posicionamento_campo"],
+        "gestao_de_boost": skills["gestao_de_boost"],
+        "composite": round(composite, 1),
+    }
+
+
+def build_pro_comparison(match_data: Dict[str, float]) -> Dict[str, Any]:
+    """
+    Função principal: monta a comparação completa jogador vs profissional.
+
+    Retorna:
+    {
+        "metrics": [  # lista de métricas com status
+            {"metric_key": ..., "label": ..., "value": ..., "pro_avg": ...,
+             "target_min": ..., "target_max": ..., "unit": ..., "status": ...},
+            ...
+        ],
+        "skill_scores": {  # scores 0-100
+            "movimentacao": ...,
+            "competencia_aerea": ...,
+            "posicionamento_campo": ...,
+            "gestao_de_boost": ...,
+        },
+        "composite": float,  # score composto geral
+    }
+    """
+    metrics = compare_to_target(match_data)
+    skills = calculate_skill_scores(match_data)
+
+    composite = (
+        skills["movimentacao"] * 0.30 +
+        skills["competencia_aerea"] * 0.25 +
+        skills["posicionamento_campo"] * 0.25 +
+        skills["gestao_de_boost"] * 0.20
+    )
+
+    return {
+        "metrics": metrics,
+        "skill_scores": skills,
+        "composite": round(composite, 1),
+    }
+
+
 if __name__ == "__main__":
     # Teste rápido
     system = BaselineSystem()

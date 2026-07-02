@@ -7,9 +7,21 @@ Instruções de uso:
 2. Editar config.json com nvidia_api_key
 3. python main.py (roda o app)
 
+Na primeira execução, será necessário informar seu Discord ID
+para validação de licença. Obtenha sua licença no Discord com /criar-id.
+
 Empacotamento com PyInstaller:
-pyinstaller --onefile --name "RLBotPro" --icon icone.ico --add-data "data;data" --add-data "config.json;." main.py
+  nicegui-pack --onefile --windowed --name RLBotPro --icon icone.ico main.py
+  (ou ver build.bat)
 """
+import os
+
+# Forçar pywebview a usar EdgeChromium (WebView2) no Windows.
+# DEVE estar ANTES de qualquer import do nicegui/pywebview.
+# Resolve o erro "import maps not supported" que ocorre quando
+# o pywebview cai no backend legado MSHTML (Internet Explorer).
+os.environ['PYWEBVIEW_GUI'] = 'edgechromium'
+
 import json
 import sys
 from pathlib import Path
@@ -21,6 +33,8 @@ from database import Database
 from bot.local_analyzer import LocalReplayAnalyzer
 from bot.ai_coach import create_coach, AICoach
 from dashboard.ui import Dashboard
+from license import validate_license
+from discord_auth import DISCORD_CLIENT_ID
 
 
 class RLBotPro:
@@ -29,6 +43,7 @@ class RLBotPro:
         self.db: Optional[Database] = None
         self.dashboard: Optional[Dashboard] = None
         self.ai_coach: Optional[AICoach] = None
+        self.discord_id: Optional[str] = None
 
     def load_config(self) -> bool:
         config_path = Path("config.json")
@@ -38,6 +53,7 @@ class RLBotPro:
             default_config = {
                 "player_name": "SEU_NICK",
                 "nvidia_api_key": "SUA_API_KEY_NVIDIA",
+                "ballchasing_api_key": "SUA_API_KEY_BALLCHASING",
                 "replays_folder": "%UserProfile%/Documents/My Games/Rocket League/TAGame/Demos",
                 "theme": "dark"
             }
@@ -73,6 +89,7 @@ class RLBotPro:
             print("AI Coach não disponível (configure nvidia_api_key no config.json)")
             return False
 
+
     def start_dashboard(self) -> None:
         self.dashboard = Dashboard(self.db, self.config, None, self.ai_coach)
 
@@ -80,7 +97,13 @@ class RLBotPro:
         def index():
             self.dashboard.build()
 
-        ui.run(dark=True, reload=False, port=8000)
+        ui.run(
+            dark=True,
+            native=True,
+            reload=False,
+            window_size=(1280, 800),
+            title='RLBot Pro',
+        )
 
     def run(self) -> None:
         print("=" * 50)
@@ -97,8 +120,8 @@ class RLBotPro:
 
         self.init_ai_coach()
 
-        print("\nIniciando dashboard...")
-        print("Acesse http://localhost:8000 no browser\n")
+        print("\nIniciando dashboard (modo nativo)...\n")
+        print("A tela de login sera exibida no app.")
 
         try:
             self.start_dashboard()
